@@ -15,6 +15,7 @@
     "corsair": "^0.1.75",
     "drizzle-orm": "^0.45.2",
     "next": "16.2.7",
+    "next-auth": "^4.24.14",
     "pg": "^8.21.0",
     "react": "19.2.4",
     "react-dom": "19.2.4",
@@ -22,6 +23,7 @@
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
+    "@types/next-auth": "^3.15.0",
     "@types/node": "^20",
     "@types/pg": "^8.20.0",
     "@types/react": "^19",
