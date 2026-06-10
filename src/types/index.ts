@@ -43,9 +43,27 @@ export interface SessionUser {
 export type EmailPriority = "high" | "normal"| "low";
 export type EmailFolder = "INBOX" | "SENT" | "DRAFTS" | "TRASH" | "SPAM";
 
-// export interface Email {
-//     id:string;
-//     userId : string;
-//     gmailId : string;
+export interface Email {
+    id:string;
+    userId : string;
+    gmailId : string;
+    threadId : string | null;
+    formAddr : string | null;
+    toAddrs : string[];
+    ccAddrs : string[];
+    subject : string | null;
+    snippet : string | null;
+    body : string | null;
+    isRead : boolean;
+    labels : string[];
+    priority : EmailPriority;
+    receivedAt : Date | null;
+    attachement : EmailAttachment[];
+}
 
-// }
+export interface EmailAttachment{
+    filename : string;
+    mimeType : string;
+    size : number;
+    attachmentId ?: string;
+}
