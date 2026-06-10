@@ -3,11 +3,14 @@ import { gmail } from "@corsair-dev/gmail";
 import { createCorsair } from "corsair"
 import { pool } from "../db";
 import { env } from "@/src/env";
+import { googlecalendar } from "@corsair-dev/googlecalendar";
 
 // https://chatgpt.com/s/t_6a282c9c311881918a94ab7246317f0e
 
-const globalForCorsair = globalThis as unknown as {
-    corsair : ReturnType<typeof createCorsair> | undefined;
+type CorsairInstance = ReturnType<typeof buildCorsair>;
+
+const globalForCorsair = globalThis as {
+  corsair?: CorsairInstance;
 };
 
 /**
@@ -47,6 +50,26 @@ function buildCorsair(){
                         },
                         after : async(ctx,result) => {
                             logger.info("Gmail webhook processed",{result});
+                        },
+                    },
+                },
+            }),
+
+            googlecalendar({
+                permissions:{
+                    mode : "cautious",
+                    overrides : {
+                        "events.delete" : "require_approval",
+                    },
+                },
+                webhookHooks:{
+                    onEventChanged:{
+                        before : async(ctx,args) =>{
+                            logger.debug("Calendar webhook received" ,{type : "onEventChanged"});
+                            return {ctx,args};
+                        },
+                        after:async(ctx,result) => {
+                            logger.info("Calendar webhook processed" , {result});
                         },
                     },
                 },
