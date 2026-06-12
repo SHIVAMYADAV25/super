@@ -42,7 +42,7 @@ export const emails = pgTable("emails", {
 })
 
 
-export const draft = pgTable("drafts",{
+export const drafts = pgTable("drafts",{
     id : uuid("id").primaryKey().defaultRandom(),
     userId : uuid("user_id")
     .notNull()
@@ -58,5 +58,5 @@ export const draft = pgTable("drafts",{
 
 export type DbEmail = typeof emails.$inferSelect;
 export type DbEmailInsert = typeof emails.$inferInsert;
-export type DbDraft = typeof draft.$inferSelect;
-export type DbDraftInsert = typeof draft.$inferInsert;
+export type DbDraft = typeof drafts.$inferSelect;
+export type DbDraftInsert = typeof drafts.$inferInsert;

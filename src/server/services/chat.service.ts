@@ -148,7 +148,7 @@ export async function processCommand(
  * Uses Anthropic streaming API with Corsair tools.
  */
 
-export async function* stream(
+export async function* streamCommand(
     userId : string,
     input : ChatInput
 ):AsyncGenerator<string> {

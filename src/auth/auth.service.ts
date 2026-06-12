@@ -14,7 +14,7 @@ interface GoogleProfile {
 
 interface OAuthTokens {
     accessToken : string;
-    refreshToken ?: string;
+    refreshToken ?: string | null;
 }
 
 /**
@@ -66,7 +66,7 @@ export async function getOrCreateUser(profile : GoogleProfile) {
  * raw tokens after this point.
  */
 
-export async function linkCorsair(
+export async function linkCorsairTenant(
     userId : string,
     tokens : OAuthTokens,
 ):Promise<void> {
