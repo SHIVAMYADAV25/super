@@ -1,0 +1,92 @@
+import { env } from "@/src/env";
+import { logger } from "@/src/lib/logger";
+import { EmailPriority } from "@/src/types";
+import { db } from "../db";
+import { emails } from "../db/schema/emails";
+import { storeEmailEmbedding } from "./search.service";
+import { and, eq } from "drizzle-orm";
+
+let openaiClient: import("openai").default | null = null;
+ 
+async function getOpenAIClient() {
+  if (!env.OPENAI_API_KEY) return null;
+  if (!openaiClient) {
+    const { default: OpenAI } = await import("openai");
+    openaiClient = new OpenAI({ apiKey: env.OPENAI_API_KEY });
+  }
+  return openaiClient;
+}
+ 
+
+export async function classifyEmailPriority(
+    subject :string,
+    snippet : string
+):Promise<EmailPriority>{
+    const client = await getOpenAIClient();
+
+    if (!client) return "normal";
+
+    const prompt = `Classify this email's priority level. Reply with exactly one word: high, normal, or low.
+ 
+Subject: ${subject.slice(0, 200)}
+Preview: ${snippet.slice(0, 300)}
+ 
+Priority:`;
+
+    try{
+        const response = await client.chat.completions.create({
+            model : "gpt-4o-mini",
+            messages : [{role : "user",content : prompt}],
+            max_tokens : 5,
+            temperature : 0 
+        })
+
+        const raw = response.choices[0]?.message?.content?.trim().toLowerCase() ?? "normal";
+
+        if(raw === "high" || raw === "low") return raw;
+
+        return "normal"
+    }catch(err){
+    logger.warn("Priority classification failed", { error: String(err) });
+    return "normal";
+    }
+}
+
+// Background job payload 
+
+export interface EmailEnrichmentJob{
+    userId : string;
+    gmailId : string;
+    subject : string;
+    snippet : string;
+    body : string;
+}
+
+/**
+ * Run all enrichment for an email:
+ * 1. Classify priority via LLM
+ * 2. Generate + store embedding for semantic search
+ */
+
+export async function enrichEmail(job: EmailEnrichmentJob): Promise<void> {
+  const { userId, gmailId, subject, snippet, body } = job;
+
+    try {
+        // 1. Priority classification
+        const priority = await classifyEmailPriority(subject, snippet);
+
+        // 2. Embedding from subject + first 2000 chars of body
+        const textForEmbedding = `${subject}\n\n${body.slice(0, 2000)}`;
+        await storeEmailEmbedding(userId, gmailId, textForEmbedding);
+
+        // 3. Update priority in DB
+        await db
+        .update(emails)
+        .set({ priority, updatedAt: new Date() })
+        .where(and(eq(emails.userId, userId), eq(emails.gmailId, gmailId)));
+
+        logger.debug("Email enriched", { userId, gmailId, priority });
+    } catch (err) {
+        logger.error("Email enrichment failed", { userId, gmailId, error: String(err) });
+    }
+}
