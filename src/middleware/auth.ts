@@ -17,8 +17,10 @@ export type AuthedRequest = NextRequest & {user : SessionUser};
 
 // What kind of function
 // can be wrapped by withAuth?
-type RouteHandler = (req:AuthedRequest , ctx : {params : Record <string,string>}) => 
-    Promise<NextResponse>;
+type RouteHandler = (
+  req: AuthedRequest,
+  ctx: { params: Record<string, string> }
+) => Promise<Response>;
 
 /**
  * Wraps a route handler and injects the authenticated user.
