@@ -25,7 +25,7 @@ if(process.env.NODE_ENV !== "production"){
  * Emit an SSE event to a specific user's stream.
  */
 
-export function emitUser(userId : string,event : SSEEvent):void{
+export function emitToUser(userId : string,event : SSEEvent):void{
     emitter.emit(`user:${userId}`,event)
 };
 
