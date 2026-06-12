@@ -134,5 +134,5 @@ export type UpdateEventInput = z.infer<typeof UpdateEventSchema>;
 export type ListEventInput = z.infer<typeof ListEventSchema>;
 export type RSVPInput = z.infer<typeof RSVPSchema>;
 export type SearchInput = z.infer<typeof searchSchema>;
-export type ChatInput = z.input<typeof ChatMessageSchema>;
+export type ChatInput = z.infer<typeof ChatMessageSchema>;
 export type MarkEmailInput = z.input<typeof MarkEmailSchema>;
