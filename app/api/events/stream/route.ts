@@ -23,6 +23,7 @@ export async function GET(request: NextRequest) {
   }
  
   const userId = session.user.id;
+  // conert string into bytes
   const encoder = new TextEncoder();
  
   logger.info("SSE client connected", { userId });
@@ -30,12 +31,21 @@ export async function GET(request: NextRequest) {
   let unsubscribe: (() => void) | null = null;
   let heartbeatInterval: ReturnType<typeof setInterval> | null = null;
  
+  //Infinite Response
   const stream = new ReadableStream({
-    start(controller) {
-      function send(event: SSEEvent) {
+    start(controller) { // Runs when browser connects.
+      function send(event: SSEEvent) {  // Send Event To Browser
+//         {
+//   type:"new_email",
+//   data:{
+//     id:"123"
+//   }
+// }
+        
         try {
+          //This is actual SSE format.
           const data = `event: ${event.type}\ndata: ${JSON.stringify(event.data ?? {})}\n\n`;
-          controller.enqueue(encoder.encode(data));
+          controller.enqueue(encoder.encode(data)); // push data into stream
         } catch {
           // Client disconnected
         }
@@ -53,10 +63,11 @@ export async function GET(request: NextRequest) {
       send({ type: "heartbeat" });
     },
  
+    // Runs when connection closes.
     cancel() {
       logger.info("SSE client disconnected", { userId });
-      if (unsubscribe) unsubscribe();
-      if (heartbeatInterval) clearInterval(heartbeatInterval);
+      if (unsubscribe) unsubscribe(); // === emitter.off(...)
+      if (heartbeatInterval) clearInterval(heartbeatInterval); // Again prevents memory leaks.
     },
   });
  

@@ -34,8 +34,9 @@ export async function handleGmailWebhook(
 
         if(payload.message?.data){
             try {
+                // convert  "eyJoaXN0b3J5SWQiOiIxMjM0NSJ9" into "{"historyId":"12345"}"
                 const decoded = Buffer.from(payload.message.data , "base64").toString("utf-8");
-                emailData  = JSON.parse(decoded);
+                emailData  = JSON.parse(decoded); // proper object
             } catch (error) {
                 logger.warn("could not decode Gmail webHook payload" , {tenantId});
             }
