@@ -118,6 +118,7 @@ function EmailDetail({
   onReply: (email: Email) => void;
   onArchive: (gmailId: string) => void;
 }) {
+  console.log("Geting a specific email : ", gmailId);
   const { data: email, isLoading } = useQuery({
     queryKey: ["email", gmailId],
     queryFn: () => api.get<Email>(`/api/emails/${gmailId}`),

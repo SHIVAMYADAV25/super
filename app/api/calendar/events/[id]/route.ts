@@ -9,9 +9,11 @@ import { deleteEvent, getEvent, updateEvent } from "@/src/server/services/calend
 // GET /api/calendar/events/[id]
 export const GET = withAuth(async (req, {params} ) =>{
     try {
-        if(!params.id) throw createValidationError("Event ID required");
 
-        const event = await getEvent(req.user.id,params.id);
+        const awaitedParams = await params
+        if(!awaitedParams.id) throw createValidationError("Event ID required");
+
+        const event = await getEvent(req.user.googleSub,req.user.id,awaitedParams.id);
         return success(event)
     } catch (error) {
         return handleRouteError(error)
@@ -23,10 +25,11 @@ export const GET = withAuth(async (req, {params} ) =>{
 
 export const PATCH = withAuth(async (req , {params})=>{
     try {
-        if (!params.id) throw createValidationError("Event ID required");
+        const awaitedParams = await params
+        if (!awaitedParams.id) throw createValidationError("Event ID required");
         const body = await req.json();
         const input = UpdateEventSchema.parse(body);
-        const event = await updateEvent(req.user.id, params.id, input);
+        const event = await updateEvent(req.user.googleSub,req.user.id, awaitedParams.id, input);
         return success(event);
     } catch (error) {
         return handleRouteError(error);
@@ -36,8 +39,9 @@ export const PATCH = withAuth(async (req , {params})=>{
 // DELETE /api/calendar/events/[id]
 export const DELETE = withAuth(async (req, { params }) => {
   try {
-    if (!params.id) throw createValidationError("Event ID required");
-    await deleteEvent(req.user.id, params.id);
+    const awaitedParams = await params
+    if (!awaitedParams.id) throw createValidationError("Event ID required");
+    await deleteEvent(req.user.googleSub,req.user.id,  awaitedParams.id);
     return success({ deleted: true });
   } catch (err) {
     return handleRouteError(err);

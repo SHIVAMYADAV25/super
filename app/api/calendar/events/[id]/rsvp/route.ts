@@ -8,10 +8,11 @@ import { rsvpEvent } from "@/src/server/services/calendar.service";
 // POST /api/calendar/events/[id]/rsvp
 export const POST = withAuth(async (req, { params }) => {
   try {
-    if (!params.id) throw createValidationError("Event ID required");
+    const awaitedParams = await params;
+    if (!awaitedParams.id) throw createValidationError("Event ID required");
     const body = await req.json();
     const input = RSVPSchema.parse(body);
-    const event = await rsvpEvent(req.user.id, params.id, req.user.email, input);
+    const event = await rsvpEvent(req.user.googleSub,req.user.id, awaitedParams.id, req.user.email, input);
     return success(event);
   } catch (err) {
     return handleRouteError(err);

@@ -9,19 +9,25 @@ import { updateDraft } from "@/src/server/services/email.service";
 import { and, eq } from "drizzle-orm";
 
 // PUT /api/drafts/[id] — update existing draft
-export const PUT = withAuth(async (req, {params}) =>{
+export const PUT = withAuth(async (req, { params }) => {
+    const { id } = await params;
+
     try {
         const body = await req.json();
         const input = SaveDraftSchema.parse(body);
 
-        // Find our local draft record
         const [draft] = await db
-        .select()
-        .from(drafts)
-        .where(and(eq(drafts.id, params.id), eq(drafts.userId, req.user.id)))
-        .limit(1);
+            .select()
+            .from(drafts)
+            .where(
+                and(
+                    eq(drafts.id, id),
+                    eq(drafts.userId, req.user.id)
+                )
+            )
+            .limit(1);
 
-        if(!draft) throw createNotFoundError("Draft");
+        if (!draft) throw createNotFoundError("Draft");
 
         const raw = buildRawMimeMessage({
             from: req.user.email,
@@ -29,50 +35,59 @@ export const PUT = withAuth(async (req, {params}) =>{
             cc: input.cc ?? [],
             subject: input.subject ?? "",
             body: input.body ?? "",
-        })
+        });
 
-        if(draft.gmailDraftId){
-            await updateDraft(req.user.id,draft.gmailDraftId, raw);
+        if (draft.gmailDraftId) {
+            await updateDraft(
+                req.user.googleSub,
+                req.user.id,
+                draft.gmailDraftId,
+                raw
+            );
         }
 
-
-        // update our local record
-
         await db
-        .update(drafts)
-        .set({
-        toAddrs: input.to ?? [],
-        ccAddrs: input.cc ?? [],
-        subject: input.subject ?? "",
-        body: input.body ?? "",
-        updatedAt: new Date(),
-      })
-      .where(eq(drafts.id, params.id));
+            .update(drafts)
+            .set({
+                toAddrs: input.to ?? [],
+                ccAddrs: input.cc ?? [],
+                subject: input.subject ?? "",
+                body: input.body ?? "",
+                updatedAt: new Date(),
+            })
+            .where(eq(drafts.id, id));
 
-      return success({ updated: true });
+        return success({ updated: true });
     } catch (err) {
         return handleRouteError(err);
     }
-})
+});
+
 
 // DELETE /api/drafts/[id]
+export const DELETE = withAuth(async (req, { params }) => {
+    const { id } = await params;
 
-export const DELETE = withAuth(async (req , { params }) => {
     try {
         const [draft] = await db
-        .select()
-        .from(drafts)
-        .where(and(eq(drafts.id, params.id), eq(drafts.userId, req.user.id)))
-        .limit(1);
+            .select()
+            .from(drafts)
+            .where(
+                and(
+                    eq(drafts.id, id),
+                    eq(drafts.userId, req.user.id)
+                )
+            )
+            .limit(1);
 
-        if(!draft) throw createNotFoundError("Draft");
+        if (!draft) throw createNotFoundError("Draft");
 
-        // Delete from Gmail
-        await db.delete(drafts).where(eq(drafts.id, params.id));
+        await db
+            .delete(drafts)
+            .where(eq(drafts.id, id));
 
-        return success({deleted : true});
-
+        return success({ deleted: true });
     } catch (err) {
-        return handleRouteError(err)
+        return handleRouteError(err);
     }
-})
+});

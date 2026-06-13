@@ -44,11 +44,14 @@ export function withAuth(handler:RouteHandler){
 
             const user : SessionUser = {
                 id:session.user.id as string,
+                googleSub: session.user.googleSub,
                 email : session.user.email,
                 name : session.user.name,
                 image : session.user.image,
             };
 
+
+            console.log("AUTH USER", user);
             // Augment request with user
             // This literally adds: user onto the request.
             (req as AuthedRequest).user = user;

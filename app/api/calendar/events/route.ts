@@ -18,15 +18,15 @@ export const GET = withAuth(async (req)=>{
             maxResult : searchParams.get("maxResult") ?? undefined
         });
 
-        const events = await listEvent(req.user.id , input);
+        const events = await listEvent(req.user.googleSub,req.user.id , input);
         return success(events);
     } catch (error) {
         return handleRouteError(error);
     }
 })
 
-// POST /api/calendar/events
 
+// POST /api/calendar/events
 export const POST = withAuth(async (req) => {
     try{
         checkRateLimit(getRateLimitKey(req as NextRequest, req.user.id), RATE_LIMITS.default);
@@ -37,17 +37,21 @@ export const POST = withAuth(async (req) => {
 
         // Check for conflicts before creating (non-blocking — returns warning not error)
         const conflicts = await checkConflicts(
+            req.user.googleSub,
             req.user.id,
             input.startTime,
             input.endTime
         );
 
-        const event = await createEvent(req.user.id,input);
+        const event = await createEvent(req.user.googleSub,req.user.id,input);
 
         return success({
             event,
-            conflict : conflicts.hasConflict ? conflicts.conflictingEvents  : [],
-        },201);
+            conflicts: conflicts.hasConflict
+                ? conflicts.conflictingEvents
+                : [],
+        }, 201);
+        
     }catch(err){
         return handleRouteError(err)
     }

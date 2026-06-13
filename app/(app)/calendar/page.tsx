@@ -34,7 +34,7 @@ function EventForm({ defaultStart, onClose, onCreated }: EventFormProps) {
     mutationFn: (data: CreateEventInput) =>
       api.post<{ event: CalendarEvent; conflicts: string[] }>("/api/calendar/events", data),
     onSuccess: (result) => {
-      if (result.conflicts.length > 0) {
+      if (result.conflicts?.length > 0) {
         setConflictWarning(`Overlaps with existing event: ${result.conflicts[0]}`);
       }
       onCreated();
@@ -230,8 +230,22 @@ function getEventTop(startTime: string): number {
 function getEventHeight(startTime: string, endTime: string): number {
   const s = parseISO(startTime);
   const e = parseISO(endTime);
+
   const mins = (e.getTime() - s.getTime()) / 60_000;
-  return Math.max(mins, 30); // min 30px
+
+  // Never allow an event taller than one day
+  return Math.min(Math.max(mins, 40), 180);
+}
+
+function isMultiDayEvent(startTime: string, endTime: string) {
+  const start = parseISO(startTime);
+  const end = parseISO(endTime);
+
+  return (
+    start.getFullYear() !== end.getFullYear() ||
+    start.getMonth() !== end.getMonth() ||
+    start.getDate() !== end.getDate()
+  );
 }
 
 export default function CalendarPage() {
@@ -249,12 +263,17 @@ export default function CalendarPage() {
   const from = weekStart.toISOString();
   const to = addDays(weekStart, 7).toISOString();
 
+  
+
   const { data: events = [], isLoading } = useQuery({
     queryKey: ["events", from, to],
     queryFn: () =>
       api.get<CalendarEvent[]>(`/api/calendar/events?from=${from}&to=${to}`),
     staleTime: 2 * 60_000,
   });
+
+  // console.log("EVENTS", events);
+  // console.log("IS ARRAY", Array.isArray(events));
 
   const rsvpMutation = useMutation({
     mutationFn: ({ id, status }: { id: string; status: RSVPInput["status"] }) =>
@@ -359,11 +378,13 @@ export default function CalendarPage() {
             {days.map((day) => {
               const dayEvents = events.filter((e) => {
                 try {
-                  return isSameDay(parseISO(e.startTime), day);
+                  return (
+                    isSameDay(parseISO(e.startTime), day) 
+                  );
                 } catch {
                   return false;
                 }
-              });
+            });
 
               return (
                 <div
@@ -385,14 +406,14 @@ export default function CalendarPage() {
                   ))}
 
                   {/* Events */}
-                  {dayEvents.map((event) => {
+                  {dayEvents.map((event,index) => {
                     let top = 0;
                     let height = 60;
                     try {
                       top = getEventTop(event.startTime);
                       height = getEventHeight(event.startTime, event.endTime);
                     } catch {}
-
+                    const overlapCount = dayEvents.length;
                     return (
                       <button
                         key={event.gcalId}
@@ -400,8 +421,31 @@ export default function CalendarPage() {
                           e.stopPropagation();
                           setSelectedEvent(event);
                         }}
-                        className="absolute left-1 right-1 rounded-md px-1.5 py-1 text-left bg-accent/20 border border-accent/30 hover:bg-accent/30 transition-colors overflow-hidden z-10"
-                        style={{ top, height: Math.max(height, 20) }}
+                        className="
+absolute
+rounded-lg
+px-2
+py-1
+text-left
+bg-accent/15
+border-l-4
+border-accent
+hover:bg-accent/25
+transition-all
+overflow-hidden
+shadow-sm
+z-10
+"
+                        
+
+style={{
+  top,
+  height: Math.max(height, 30),
+
+  width: `calc(${100 / overlapCount}% - 8px)`,
+
+  left: `calc(${index * (100 / overlapCount)}%)`,
+}}
                       >
                         <p className="text-xs font-medium text-accent truncate">{event.summary}</p>
                         {height > 30 && (

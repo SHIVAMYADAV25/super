@@ -92,8 +92,20 @@ if(process.env.NODE_ENV !== "production"){
  * All API calls and DB queries are automatically scoped to this tenant.
  */
 
+/**
+ * Corsair has a bug where all-numeric tenant_id strings (like raw Google
+ * `sub` IDs, e.g. "115022235190203160742") get coerced to a JS number
+ * internally and fail zod's `tenant_id: z.string()` check.
+ *
+ * Fix: always prefix the userId before handing it to Corsair, so the
+ * tenant_id is never purely numeric.
+ */
+export function getTenantId(userId: string): string {
+    return `user_${userId}`;
+}
+
 export function getTenant(userId : string){
-    return corsair.withTenant(userId);
+    return corsair.withTenant(getTenantId(userId));
 }
 
 export type CorsairTenant = ReturnType<typeof getTenant>;

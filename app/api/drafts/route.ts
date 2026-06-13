@@ -23,7 +23,7 @@ export const POST = withAuth(async (req) => {
             body : input.body ?? "",
         })
 
-        const {draftId : gmailDraftId} = await createDraft(req.user.id,raw);
+        const {draftId : gmailDraftId} = await createDraft(req.user.googleSub,req.user.id,raw);
 
         // Save to our DB for tracking
         const [draft] = await db

@@ -357,10 +357,17 @@ export function ComposeModal({ replyTo, onClose, onSent }: ComposeModalProps) {
       </div>
 
       {/* Discard confirm dialog */}
-      {showDiscard && (
-        <div className="fixed inset-0 flex items-center justify-center z-60">
-          <div className="bg-surface-1 border border-border rounded-xl p-5 w-72 shadow-2xl">
-            <p className="text-sm font-medium text-text-primary mb-1">Discard draft?</p>
+{showDiscard && (
+<div className="fixed inset-0 z-[9999] flex items-center justify-center">
+    <div
+      className="absolute inset-0 bg-black/50"
+      onClick={() => setShowDiscard(false)}
+    />
+
+    <div className="relative bg-surface-1 border border-border rounded-xl p-5 w-72 shadow-2xl">
+      <p className="text-sm font-medium text-text-primary mb-1">
+        Discard draft?
+      </p>
             <p className="text-xs text-text-secondary mb-4">
               Your unsent message will be deleted.
             </p>

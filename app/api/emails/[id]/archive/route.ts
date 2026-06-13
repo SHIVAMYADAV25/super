@@ -5,10 +5,12 @@ import { archiveEmail } from "@/src/server/services/email.service";
 
 export const POST = withAuth(async (req , {params}) => {
     try {
-        const {id} = EmailIdSchema.parse(params);
-        await archiveEmail(req.user.id,id);
+        const resolvedParams = await params;
+        const {id} = EmailIdSchema.parse(resolvedParams);
+        await archiveEmail(req.user.googleSub,req.user.id,id);
         return success({archived : true})
     } catch (error) {
         return handleRouteError(error)
     }
 })
+

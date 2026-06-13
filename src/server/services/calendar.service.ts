@@ -11,11 +11,13 @@ import { and, eq } from "drizzle-orm";
 
 
 export async function listEvent(
+    tenantId:string,
     userId : string,
     opts : ListEventInput,
 ):Promise<CalendarEvent[]> {
     try{
-        const tenant = getTenant(userId);
+
+        const tenant = getTenant(tenantId);
 
         // Use Corsair Google Calendar API
         const result = await tenant.googlecalendar.api.events.getMany({
@@ -27,6 +29,8 @@ export async function listEvent(
             orderBy: "startTime",
             });
 
+        // console.log(result)
+
         const items = result.items ?? [];
 
         // upsert into our DB cache in background
@@ -34,6 +38,13 @@ export async function listEvent(
 
         return items.map(mapToCalendarEvent.bind(null,userId));
     }catch(err){
+        console.dir(err, { depth: null });
+
+        logger.error("ListEvent failed",{
+        userId,
+        error: err,
+        });
+
         logger.error("ListEvent failed",{userId,error : String(err)});
         throw createExternalApiError("Google calendar", err);
     }
@@ -43,11 +54,12 @@ export async function listEvent(
 // Get single event
 
 export async function getEvent(
+    tenantId:string,
     userId : string,
     gcalId : string,
 ):Promise<CalendarEvent> {
     try {
-        const tenant = getTenant(userId);
+        const tenant = getTenant(tenantId);
 
         const event = await tenant.googlecalendar.api.events.get({id : gcalId});
 
@@ -67,11 +79,12 @@ export async function getEvent(
 // Create event
 
 export async function createEvent(
+    tenantId:string,
     userId : string,
     input : CreateEventInput,
 ):Promise<CalendarEvent>{
     try {
-        const tenant = getTenant(userId);
+        const tenant = getTenant(tenantId);
 
         const event = await tenant.googlecalendar.api.events.create({
             event:{
@@ -101,6 +114,9 @@ export async function createEvent(
         return mapToCalendarEvent(userId,event);
     } catch (error) {
         logger.error("createEvent failed",{userId,error : String(error)});
+        logger.error("createEvent failed",{userId,error});
+        console.error(error);
+        console.dir(error, { depth: null });
         throw createExternalApiError("Google Calendar" ,error)
     }
 }
@@ -109,12 +125,13 @@ export async function createEvent(
 // update event
 
 export async function updateEvent(
+    tenantId:string,
     userId : string,
     gcalId : string,
     input : UpdateEventInput,
 ):Promise<CalendarEvent>{
     try {
-        const tenant = getTenant(userId);
+        const tenant = getTenant(tenantId);
 
         const updated = await tenant.googlecalendar.api.events.update({
             id : gcalId,
@@ -147,11 +164,12 @@ export async function updateEvent(
 // delet event
 
 export async function deleteEvent(
+    tenantId:string,
     userId : string,
     gcalId : string
 ):Promise<void> {
     try {
-        const tenant = getTenant(userId);
+        const tenant = getTenant(tenantId);
 
 
         // Note for future shivam : "events.delete" is set to "require_approval" in Corsair config
@@ -190,13 +208,14 @@ type GoogleCalendarAttendee = {
 
 // RSVP
 export async function rsvpEvent(
+    tenantId:string,
   userId: string,
   gcalId: string,
   userEmail: string,
   input: RSVPInput,
 ): Promise<CalendarEvent> {
   try {
-    const tenant = getTenant(userId);
+    const tenant = getTenant(tenantId);
  
     // First fetch the current event to get the attendees list
     const current = await tenant.googlecalendar.api.events.get({ id: gcalId });
@@ -212,10 +231,17 @@ export async function rsvpEvent(
         );
  
     const updated = await tenant.googlecalendar.api.events.update({
-      id: gcalId,
-      event: { attendees: updatedAttendees },
-      sendUpdates: "all",
-    });
+        id: gcalId,
+        event: {
+            summary: current.summary,
+            description: current.description,
+            location: current.location,
+            start: current.start,
+            end: current.end,
+            attendees: updatedAttendees,
+        },
+        sendUpdates: "all",
+        });
  
     await upsertEvent(userId, updated);
  
@@ -224,6 +250,8 @@ export async function rsvpEvent(
     return mapToCalendarEvent(userId, updated);
   } catch (err) {
     logger.error("rsvpEvent failed", { userId, gcalId, error: String(err) });
+    console.error(err);
+    console.dir(err, { depth: null });
     throw createExternalApiError("Google Calendar", err);
   }
 }
@@ -232,12 +260,13 @@ export async function rsvpEvent(
 // ─── Conflict check
 
 export async function checkConflicts(
+    tenantId:string,
     userId : string,
     startTime :string,
     endTime :string
 ): Promise<{ hasConflict: boolean; conflictingEvents: string[] }> {
     try {
-        const tenant = getTenant(userId);
+        const tenant = getTenant(tenantId);
 
         const result = await tenant.googlecalendar.api.calendar.getAvailability({
             timeMax : endTime,

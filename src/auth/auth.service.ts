@@ -1,9 +1,13 @@
 import { eq } from "drizzle-orm";
-import { db } from "../server/db";
-import { users } from "../server/db/schema";
+import { db, pool } from "../server/db";
+import { users, corsairAccounts, corsairIntegrations } from "../server/db/schema";
 import { logger } from "../lib/logger";
-import { getTenant } from "../server/lib/corsair";
+import { getTenant, getTenantId } from "../server/lib/corsair";
 import { createExternalApiError } from "../lib/errors";
+import { initializeAccountDEK } from "corsair/core";
+import { createCorsairDatabase } from "corsair/db";
+import { env } from "../env";
+import { randomUUID } from "crypto";
 
 interface GoogleProfile {
     sub : string; // Google's user ID (we use as our user ID)
@@ -38,7 +42,6 @@ export async function getOrCreateUser(profile : GoogleProfile) {
     const [created] = await db
     .insert(users)
     .values({
-        id: profile.sub, // using google sub
         email : profile.email,
         name : profile.name,
         image : profile.picture
@@ -68,13 +71,73 @@ export async function getOrCreateUser(profile : GoogleProfile) {
 
 export async function linkCorsairTenant(
     userId : string,
+    googleSub: string,
     tokens : OAuthTokens,
 ):Promise<void> {
     try{
-        const tenant = getTenant(userId);
+        const tenantId = getTenantId(googleSub);
+        console.log("LINK TENANT", {
+            userId,
+            googleSub,
+            tenantId,
+            });
+
+        // Corsair only auto-creates the corsair_accounts row inside
+        // processOAuthCallback (the /api/connect flow) or `corsair setup`.
+        // On a plain NextAuth sign-in there is no row yet, and
+        // initializeAccountDEK requires the row to already exist
+        // ("Account not found... Make sure to create the account first").
+        // So create the corsair_accounts row ourselves for each
+        // integration before initializing the DEK.
+        for (const integrationName of ["gmail", "googlecalendar"] as const) {
+            const integration = await db
+                .select()
+                .from(corsairIntegrations)
+                .where(eq(corsairIntegrations.name, integrationName))
+                .limit(1);
+
+            if (integration.length === 0) {
+                throw new Error(
+                    `corsair_integrations row for "${integrationName}" is missing. ` +
+                    `Run the corsair setup/CLI to configure the plugin's client_id/client_secret first.`
+                );
+            }
+
+            const integrationId = integration[0]!.id;
+
+            const existingAccount = await db
+                .select()
+                .from(corsairAccounts)
+                .where(eq(corsairAccounts.tenantId, tenantId))
+                .limit(1000); // small table; filter in JS for the matching integration
+
+            const alreadyExists = existingAccount.some(
+                (a) => a.tenantId === tenantId && a.integrationId === integrationId
+            );
+
+            if (!alreadyExists) {
+                await db.insert(corsairAccounts).values({
+                    id: randomUUID(),
+                    tenantId,
+                    integrationId,
+                    config: {},
+                });
+                logger.info("Created corsair_accounts row", { tenantId, integrationName });
+            }
+        }
+
+        const corsairDb = createCorsairDatabase(pool);
+        await initializeAccountDEK(corsairDb, "gmail", tenantId, env.CORSAIR_KEK);
+        await initializeAccountDEK(corsairDb, "googlecalendar", tenantId, env.CORSAIR_KEK);
+
+        const tenant = getTenant(googleSub);
 
         // Store Gmail OAuth credentials for this tenant
         // Corsair uses these for every gmail.api.* call and handles refresh
+        console.log("SETTING TOKENS FOR", {
+        googleSub,
+        tenantId,
+        });
         await tenant.gmail.keys.set_access_token(tokens.accessToken);
         if(tokens.refreshToken){
             await tenant.gmail.keys.set_refresh_token(tokens.refreshToken);

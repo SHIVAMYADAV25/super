@@ -34,7 +34,8 @@ export interface User {
 
 
 export interface SessionUser {
-    id : string;
+    id: string;          // DB UUID
+    googleSub: string;   // Google User ID
     email : string;
     name ?: string |null;
     image ?: string | null;

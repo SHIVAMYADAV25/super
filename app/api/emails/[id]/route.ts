@@ -8,11 +8,16 @@ import { getEmail, modifyEmail } from "@/src/server/services/email.service";
 // GET /api/emails/[id] — get full email
 export const GET = withAuth(async (req , {params}) => {
     try {
-        const { id } = EmailIdSchema.parse(params);
-        const email = await getEmail(req.user.id, id);
+        const resolvedParams = await params;
+
+        const { id } = EmailIdSchema.parse(resolvedParams);
+
+        const email = await getEmail(req.user.id,req.user.googleSub, id);
+         console.log(email);
 
         return success(email);
     } catch (err) {
+        console.dir(err, { depth: null });
         return handleRouteError(err);
     }
 })

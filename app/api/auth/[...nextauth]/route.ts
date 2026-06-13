@@ -1,5 +1,5 @@
 import NextAuth, { AuthOptions } from "next-auth";
-import { linkCorsairTenant } from "@/src/auth/auth.service";
+import { linkCorsairTenant, getOrCreateUser } from "@/src/auth/auth.service";
 import { authConfig } from "@/src/auth/config";
 import { logger } from "@/src/lib/logger";
 import type { User, Account } from "next-auth";
@@ -24,11 +24,39 @@ const extendedConfig: AuthOptions = {
                     account,
                   });
  
+      // Ensure a row exists in our `users` table for this Google account
+      let dbUser:
+  | Awaited<ReturnType<typeof getOrCreateUser>>
+  | undefined;
+
+try {
+  dbUser = await getOrCreateUser({
+    sub: user.id,
+    email: user.email!,
+    name: user.name ?? undefined,
+    picture: user.image ?? undefined,
+  });
+
+  (user as any).dbUserId = dbUser.id;
+
+  console.log("USER IDS", {
+    googleSub: user.id,
+    dbUserId: dbUser.id,
+  });
+} catch (err) {
+        logger.error("getOrCreateUser failed during sign-in", {
+          userId: user.id,
+          error: String(err),
+        });
+        return true; // don't block login on a profile upsert failure
+      }
+
       // On first OAuth sign-in, link tokens to Corsair tenant
       // This stores encrypted credentials for all subsequent API calls
       if (account.access_token) {
         try {
-          await linkCorsairTenant(user.id, {
+          await linkCorsairTenant(dbUser.id,
+                      user.id, {
             accessToken: account.access_token,
             refreshToken: account.refresh_token,
           });

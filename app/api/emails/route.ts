@@ -20,7 +20,7 @@ export const GET = withAuth(async (req) => {
             pageToken: searchParams.get("pageToken") ?? undefined
         });
 
-        const result = await listEmail(req.user.id,input);
+        const result = await listEmail(req.user.googleSub,req.user.id,input);
 
         return success(result);
     } catch (error) {
@@ -39,7 +39,7 @@ export const POST = withAuth(async (req) => {
         const body = await req.json();
         const input = SendEmailSchema.parse(body);
 
-        const result = await sendEmail(req.user.id,input,req.user.email);
+        const result = await sendEmail(req.user.googleSub,req.user.id,input,req.user.email);
 
         // Clean up local draft record if one was associated
         if(input.draftId){
@@ -55,7 +55,7 @@ export const POST = withAuth(async (req) => {
             .limit(1);
 
             if (draft?.gmailDraftId) {
-                await deleteDraft(req.user.id, draft.gmailDraftId);
+                await deleteDraft(req.user.googleSub,req.user.id, draft.gmailDraftId);
             }
         }
 

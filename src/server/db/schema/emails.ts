@@ -1,4 +1,4 @@
-import { customType, json, pgTable, text, uuid,boolean, timestamp } from "drizzle-orm/pg-core";
+import { customType, json, pgTable, text, uuid,boolean, timestamp, unique } from "drizzle-orm/pg-core";
 import { users } from "./users";
 import { EmailAttachment, EmailPriority } from "@/src/types";
 
@@ -16,30 +16,61 @@ const vector = customType<{data : number[]; driverData : string}>({
     },
 });
 
-export const emails = pgTable("emails", {
-    id : uuid("id").primaryKey().defaultRandom(),
-    userId : uuid("user_id")
-    .notNull()
-    .references(() => users.id,{onDelete :"cascade"}),
-    gmailId : text("gamil_id").notNull(),
-    threadId : text("thread_id"),
-    fromAddr : text("from_addr"),
-    toAddrs : json("to_addrs").$type<string[]>().notNull().default([]),
-    ccAddrs : json("cc_addrs").$type<string[]>().notNull().default([]),
-    bccAddrs : json("bcc_addrs").$type<string[]>().notNull().default([]),
-    subject : text("subject"),
-    snippet : text("snippet"),
-    body : text("body"),
-    isRead : boolean("is_read").notNull().default(false),
-    labels:json("labels").$type<string[]>().notNull().default([]),
-    priority : text("priority").$type<EmailPriority>().notNull().default("normal"),
-    attachments : json("attachments").$type<EmailAttachment[]>().notNull().default([]),
-    // Embedding generated from subject + body for semantic search
-    embedding : vector("embedding"),
-  receivedAt: timestamp("received_at", { withTimezone: true }),
-  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
-  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(), 
-})
+export const emails = pgTable(
+  "emails",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+
+    gmailId: text("gamil_id").notNull(),
+
+    threadId: text("thread_id"),
+    fromAddr: text("from_addr"),
+
+    toAddrs: json("to_addrs").$type<string[]>().notNull().default([]),
+    ccAddrs: json("cc_addrs").$type<string[]>().notNull().default([]),
+    bccAddrs: json("bcc_addrs").$type<string[]>().notNull().default([]),
+
+    subject: text("subject"),
+    snippet: text("snippet"),
+    body: text("body"),
+
+    isRead: boolean("is_read").notNull().default(false),
+
+    labels: json("labels").$type<string[]>().notNull().default([]),
+
+    priority: text("priority")
+      .$type<EmailPriority>()
+      .notNull()
+      .default("normal"),
+
+    attachments: json("attachments")
+      .$type<EmailAttachment[]>()
+      .notNull()
+      .default([]),
+
+    embedding: vector("embedding"),
+
+    receivedAt: timestamp("received_at", { withTimezone: true }),
+
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => ({
+    emailsUserGmailUnique: unique("emails_user_gmail_unique").on(
+      table.userId,
+      table.gmailId
+    ),
+  })
+);
 
 
 export const drafts = pgTable("drafts",{

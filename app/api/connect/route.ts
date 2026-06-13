@@ -2,7 +2,7 @@ import { env } from "@/src/env";
 import { handleRouteError } from "@/src/lib/api-response";
 import { createValidationError } from "@/src/lib/errors";
 import { withAuth } from "@/src/middleware/auth";
-import { corsair } from "@/src/server/lib/corsair";
+import { corsair, getTenantId } from "@/src/server/lib/corsair";
 import { generateOAuthUrl } from "corsair/oauth";
 import { NextResponse } from "next/server";
 
@@ -28,18 +28,10 @@ export const GET = withAuth(async (req) => {
             throw createValidationError("plugin must be 'gmail' or 'googlecalendar");
         }
         
-        console.log(
-            "tenantId",
-            req.user.id,
-            typeof req.user.id
-            );
         const {url,state } = await generateOAuthUrl(corsair,plugin,{
-            tenantId: req.user.id, // always from session, never from URL
+            tenantId: getTenantId(req.user.id), // always from session, never from URL
             redirectUri: REDIRECT_URI,
         })
-console.log("OAUTH URL:", url);
-console.log("REDIRECT URI:", REDIRECT_URI);
-        
 
         const response = NextResponse.redirect(url);
 
@@ -57,4 +49,3 @@ console.log("REDIRECT URI:", REDIRECT_URI);
         return handleRouteError(err);
     }
 })
-

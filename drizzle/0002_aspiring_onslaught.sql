@@ -1,0 +1,1 @@
+CREATE UNIQUE INDEX "calendar_events_user_gcal_idx" ON "calendar_events" USING btree ("user_id","gcal_id");

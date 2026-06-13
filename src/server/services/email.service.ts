@@ -10,6 +10,7 @@ import { queueEmailEmbedding } from "@/src/jobs/priority-queue";
 import { and, eq, sql } from "drizzle-orm";
 
 export async function listEmail(
+    tenantId : string,
     userId : string,
     opts : ListEmailsInput
 ):Promise <PaginatedResponse<EmailListItem>>{
@@ -17,7 +18,7 @@ export async function listEmail(
         // Prefer Corsair's local DB cache for speed — no API call
         // Falls back to Gmail API if cache is cold
 
-        const tenant = getTenant(userId);
+        const tenant = getTenant(tenantId);
 
         let corsairMessage : Array<{
             data : {
@@ -71,6 +72,106 @@ export async function listEmail(
             offset : opts.pageToken ? parseInt(opts.pageToken,10) : 0
         })
 
+        // const cached: any[] = [];
+
+        // logger.info("CACHE RESULT", {
+        //     count: cached.length,
+        //     pageToken: opts.pageToken,
+        //     limit: opts.limit,
+        // });
+
+        // if (cached.length > 0) {
+        //     logger.info("SEEDING DB FROM CACHE");
+
+        //     for (const row of cached) {
+        //         logger.info("CACHE EMAIL", {
+        //             gmailId: row.entity_id,
+        //             subject: row.data.subject,
+        //         });
+        //     }
+        // }
+
+        // Corsair's local cache is populated by webhooks, which require
+        // Gmail push notifications (Pub/Sub) to be configured. Until then
+        // (or on first load), the cache is empty — fall back to a live
+        // Gmail API call so the inbox isn't empty.
+        if (cached.length === 0 && !(opts.pageToken && parseInt(opts.pageToken, 10) > 0)) {
+            const result = await tenant.gmail.api.messages.list({
+                maxResults: opts.limit,
+                pageToken: opts.pageToken,
+                labelIds: opts.labelIds,
+            });
+
+            logger.info("FETCHING FROM GMAIL API");
+
+            const ids = (result.messages ?? []).map((m) => m.id).filter(Boolean) as string[];
+            const batchSize = 5;
+            const fullMessage = [];
+
+            for (let i = 0; i < ids.length; i += batchSize) {
+                const batch = ids.slice(i, i + batchSize);
+                const fetched = await Promise.all(
+                    batch.map((id) =>
+                        tenant.gmail.api.messages.get({ id, format: "metadata" })
+                    )
+                );
+                fullMessage.push(...fetched);
+            }
+
+            // Cache into Corsair's local DB + our own emails table for next time.
+            // gmail.db.messages stores flattened fields (subject, from, to,
+            // body, snippet, internalDate, threadId, labelIds) — not raw
+            // payload — so flatten headers before upserting.
+            logger.info("ABOUT TO SAVE EMAILS", {
+                count: fullMessage.length,
+            });
+            logger.info("STARTING UPSERT");
+            void upsertEmailsBatch(userId, fullMessage);
+            logger.info("Emails saved to DB");
+
+            for (const msg of fullMessage) {
+                if (msg.id) {
+                    const headers = msg.payload?.headers ?? [];
+                    const getHeader = (name: string) =>
+                        headers.find((h) => h.name?.toLowerCase() === name.toLowerCase())?.value ?? null;
+
+                    void tenant.gmail.db.messages
+                        .upsertByEntityId({
+                            entityId: msg.id,
+                            version: "1",
+                            data: {
+                                id: msg.id,
+                                threadId: msg.threadId ?? null,
+                                snippet: msg.snippet ?? null,
+                                historyId: msg.historyId ?? null,
+                                internalDate: msg.internalDate ?? null,
+                                labelIds: msg.labelIds ?? [],
+                                subject: getHeader("Subject"),
+                                from: getHeader("From"),
+                                to: getHeader("To"),
+                                body: null,
+                            },
+                        })
+                        .catch((err: unknown) =>
+                            logger.warn("Failed to cache message in corsair db", {
+                                userId,
+                                error: String(err),
+                            })
+                        );
+                }
+            }
+
+            return {
+                items: fullMessage.map(mapToListItem),
+                nextPageToken: result.nextPageToken,
+                total: result.resultSizeEstimate,
+            };
+        }
+
+        // logger.info("RETURNING CACHED EMAILS", {
+        //     count: cached.length,
+        // });
+
         return {
             items : cached.map((row) =>({
                 id : row.id,
@@ -100,10 +201,11 @@ export async function listEmail(
 // get single email
 export async function getEmail(
     userId : string,
+    gmailTenantId : string,
     gmailId : string
 ): Promise<Email>{
     try{
-        const tenant = getTenant(userId);
+        const tenant = getTenant(gmailTenantId);
 
         // fetch full message from Gmail via corsair
         const msg = await tenant.gmail.api.messages.get({
@@ -111,30 +213,34 @@ export async function getEmail(
             format :"full",
         })
 
+        console.log("msg" ,msg);
+
         if(!msg) throw createNotFoundError("Email");
 
         const parsed = parseGmailMessage(msg);
+
+        console.log("parsed",parsed);
 
         // Upsert into our Db cache
         await upsertEmail(userId,parsed);
 
         // Queue priority classification async (fire and forget)
-        if(parsed.subject || parsed.snippet){
-            void queueEmailEmbedding({
-                userId,
-                gmailId,
-                subject : parsed.subject ?? "",
-                snippet : parsed.snippet ?? "",
-                body : parsed.body ?? "",
-            });
-        }
+        // if(parsed.subject || parsed.snippet){
+        //     void queueEmailEmbedding({
+        //         userId,
+        //         gmailId,
+        //         subject : parsed.subject ?? "",
+        //         snippet : parsed.snippet ?? "",
+        //         body : parsed.body ?? "",
+        //     });
+        // }
 
         return {
             id : gmailId,
             userId,
             gmailId,
             threadId : parsed.threadId,
-            formAddr : parsed.fromAddr,
+            fromAddr : parsed.fromAddr,
             toAddrs : parsed.toAddrs,
             ccAddrs : parsed.ccAddrs,
             subject : parsed.subject,
@@ -143,14 +249,26 @@ export async function getEmail(
             isRead : parsed.isRead,
             labels : parsed.labels,
             priority : "normal",
-            attachement : parsed.attachments,
+            attachments : parsed.attachments,
             receivedAt : parsed.receivedAt
         }
     }catch(err){
-        if((err as Error).message?.includes("not found")) throw err;
-        logger.error("getEmail Failed" , {userId,gmailId, error : String(err)});
+        
+        console.error("FULL ERROR");
+        console.dir(err, { depth: null });
+
+        if((err as Error).message?.includes("not found")) {
+            throw err;
+        }
+
+        logger.error("getEmail Failed" , {
+            userId,
+            gmailId,
+            error : String(err)
+        });
+
         throw createExternalApiError("Gmail",err)
-    }    
+        }    
 }
 
 export async function modifyEmail(
@@ -192,9 +310,9 @@ export async function modifyEmail(
 
 //Archive (remove from INBOX) 
 
-export async function archiveEmail(userId : string,gmailId : string):Promise<void>{
+export async function archiveEmail(tenantId : string,userId:string,gmailId : string):Promise<void>{
     try{
-        const tenant = getTenant(userId);
+        const tenant = getTenant(tenantId);
 
         await tenant.gmail.api.messages.modify({
             id : gmailId,
@@ -214,12 +332,13 @@ export async function archiveEmail(userId : string,gmailId : string):Promise<voi
 // Send email 
 
 export async function sendEmail(
+    TenantId : string,
     userId : string,
     input : SendEmailInput,
     userEmail : string
 ):Promise<{messageId : string;threadId : string | null }>{
     try {
-        const tenant = getTenant(userId);
+        const tenant = getTenant(TenantId);
 
         const raw = buildRawMimeMessage({
             from : userEmail,
@@ -249,11 +368,12 @@ export async function sendEmail(
 // Draft management 
 
 export async function createDraft(
+    TenantId : string,
     userId : string,
     raw : string,
 ):Promise<{draftId : string }>{
     try{
-        const tenant = getTenant(userId);
+        const tenant = getTenant(TenantId);
 
         const result = await tenant.gmail.api.drafts.create({
             draft : {message : {raw}}
@@ -268,12 +388,13 @@ export async function createDraft(
 
 
 export async function updateDraft(
+    tenantId : string,
     userId : string,
     gamilDraftId : string,
     raw : string
 ): Promise<void>{
     try{
-        const tenant = getTenant(userId);
+        const tenant = getTenant(tenantId);
 
         await tenant.gmail.api.drafts.update({
             id : gamilDraftId,
@@ -288,11 +409,12 @@ export async function updateDraft(
 }
 
 export async function deleteDraft(
+    tenantId : string,
     userId : string,
     gmailDraftId : string
 ):Promise<void>{
     try{
-        const tenant = getTenant(userId);
+        const tenant = getTenant(tenantId);
         await tenant.gmail.api.drafts.delete({id : gmailDraftId});
 
     }catch(err){
@@ -317,6 +439,23 @@ interface RawGmailMsg{
 
 async function upsertEmail(userId: string, parsed: ReturnType<typeof parseGmailMessage>) {
   if (!parsed.gmailId) return;
+logger.info("UPSERTING EMAIL", {
+    gmailId: parsed.gmailId,
+    subject: parsed.subject,
+  });
+
+  console.log({
+  gmailId: parsed.gmailId,
+  threadId: parsed.threadId,
+  fromAddr: parsed.fromAddr,
+  toAddrs: parsed.toAddrs,
+  ccAddrs: parsed.ccAddrs,
+  subject: parsed.subject,
+  snippet: parsed.snippet,
+  labels: parsed.labels,
+  attachments: parsed.attachments,
+  receivedAt: parsed.receivedAt,
+});
 
   await db
     .insert(emails)
@@ -348,12 +487,16 @@ async function upsertEmail(userId: string, parsed: ReturnType<typeof parseGmailM
 }
 
 async function upsertEmailsBatch(userId: string, messages: RawGmailMsg[]) {
+      logger.info("UPSERT BATCH CALLED", {
+            count: messages.length,
+        });
   for (const msg of messages) {
     try {
       const parsed = parseGmailMessage(msg);
       await upsertEmail(userId, parsed);
     } catch (err) {
-      logger.warn("Failed to upsert email", { gmailId: msg.id, error: String(err) });
+        console.error("UPSERT FAILED");
+        console.dir(err, { depth: null });
     }
   }
 }

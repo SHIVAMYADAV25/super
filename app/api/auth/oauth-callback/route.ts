@@ -87,8 +87,6 @@ console.log(typeof payload.tenantId);
       redirectUri: REDIRECT_URI,
     });
 
-    console.log("hellllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllll")
-
     logger.info("OAuth callback processed", {
       plugin: result.plugin,
       tenantId: result.tenantId,
