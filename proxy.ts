@@ -17,7 +17,8 @@ function isPublicPath(pathname : string):boolean{
     return PUBLIC_PATHS.some((p) => pathname.startsWith(p));
 }
 
-export async function middleware(req:NextRequest) {
+export async function proxy(req:NextRequest) {
+    console.log("PROXY:", req.nextUrl.pathname);
     const {pathname} = req.nextUrl;
 
     // Allow public paths

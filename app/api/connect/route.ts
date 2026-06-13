@@ -22,15 +22,24 @@ const REDIRECT_URI = `${env.NEXT_PUBLIC_APP_URL}/api/auth/oauth-callback`;
 export const GET = withAuth(async (req) => {
     try{
         const plugin = new URL(req.url).searchParams.get("plugin");
+        
 
         if(!plugin || !["gmail","googlecalendar"].includes(plugin)){
             throw createValidationError("plugin must be 'gmail' or 'googlecalendar");
         }
         
+        console.log(
+            "tenantId",
+            req.user.id,
+            typeof req.user.id
+            );
         const {url,state } = await generateOAuthUrl(corsair,plugin,{
             tenantId: req.user.id, // always from session, never from URL
             redirectUri: REDIRECT_URI,
         })
+console.log("OAUTH URL:", url);
+console.log("REDIRECT URI:", REDIRECT_URI);
+        
 
         const response = NextResponse.redirect(url);
 
@@ -48,3 +57,4 @@ export const GET = withAuth(async (req) => {
         return handleRouteError(err);
     }
 })
+

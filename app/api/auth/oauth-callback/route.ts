@@ -73,11 +73,21 @@ export async function GET(request: NextRequest) {
   try {
     // Corsair exchanges the code for tokens and stores them encrypted
     // The tenantId is extracted from the signed state — no query param needed
+
+    const payload = JSON.parse(
+  Buffer.from(state.split(".")[0], "base64url").toString()
+);
+
+console.log(payload);
+console.log(typeof payload.tenantId);
+
     const result = await processOAuthCallback(corsair, {
       code,
       state,
       redirectUri: REDIRECT_URI,
     });
+
+    console.log("hellllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllll")
 
     logger.info("OAuth callback processed", {
       plugin: result.plugin,

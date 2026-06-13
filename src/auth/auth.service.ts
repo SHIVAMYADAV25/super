@@ -83,7 +83,7 @@ export async function linkCorsairTenant(
         // Store Google Calendar OAuth credentials
         await tenant.googlecalendar.keys.set_access_token(tokens.accessToken);
         if(tokens.refreshToken){
-            await tenant.googlecalendar.keys.set_access_token(tokens.refreshToken);
+            await tenant.googlecalendar.keys.set_refresh_token(tokens.refreshToken);
         }
 
         logger.info("Corsair tenant linked" , {userId});

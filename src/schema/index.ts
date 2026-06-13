@@ -64,27 +64,42 @@ export const UpdateDraftSchema = SaveDraftSchema;
 
 // calendar
 
-export const CreateEventSchema = z.object({
-    summary : z.string().min(1,"Event title is required").max(500),
-    description : z.string().max(8192).optional(),
-    location : z.string().max(500).optional(),
-    startTime : z.string().datetime({message : "Invalid start time (ISO 8601 required"}),
-    endTime : z.string().datetime({message : "Invalid end time (ISO 8601 required"}),
-    timeZone : z.string().optional(), // IANA timezone, e.g. "Asia/Kolkata"
-    attendees : z
+const CreateEventBaseSchema = z.object({
+  summary: z.string().min(1, "Event title is required").max(500),
+  description: z.string().max(8192).optional(),
+  location: z.string().max(500).optional(),
+  startTime: z.string().datetime({
+    message: "Invalid start time (ISO 8601 required)",
+  }),
+  endTime: z.string().datetime({
+    message: "Invalid end time (ISO 8601 required)",
+  }),
+  timeZone: z.string().optional(),
+  attendees: z
     .array(z.string().email("Invalid attendee email"))
     .max(100)
     .optional()
     .default([]),
-    sendUpdates : z.enum(["all","externalOnly","none"]).optional().default("all"),
-}).refine(
-    (data) => new Date(data.endTime) > new Date(data.startTime),
-    {message : 'End time must be after start time', path : ["endTime"]},
-)
+  sendUpdates: z
+    .enum(["all", "externalOnly", "none"])
+    .optional()
+    .default("all"),
+});
 
-export const UpdateEventSchema =  CreateEventSchema.partial().extend({
-    sendUpdates : z.enum(["all","externalOnly","none"]).optional().default("all")
-})
+export const CreateEventSchema = CreateEventBaseSchema.refine(
+  (data) => new Date(data.endTime) > new Date(data.startTime),
+  {
+    message: "End time must be after start time",
+    path: ["endTime"],
+  }
+);
+
+export const UpdateEventSchema = CreateEventBaseSchema.partial().extend({
+  sendUpdates: z
+    .enum(["all", "externalOnly", "none"])
+    .optional()
+    .default("all"),
+});
 
 export const ListEventSchema = z.object({
     from : z.string().datetime().optional(),

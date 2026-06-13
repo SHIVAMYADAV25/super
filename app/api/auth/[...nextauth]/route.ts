@@ -19,6 +19,10 @@ const extendedConfig: AuthOptions = {
     ...authConfig.callbacks,
     async signIn({ user, account }:SignInParams) {
       if (!account || !user.id) return true;
+      logger.info("SIGNIN CALLBACK", {
+                    user,
+                    account,
+                  });
  
       // On first OAuth sign-in, link tokens to Corsair tenant
       // This stores encrypted credentials for all subsequent API calls
