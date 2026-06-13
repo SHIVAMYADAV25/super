@@ -48,7 +48,7 @@ export interface Email {
     userId : string;
     gmailId : string;
     threadId : string | null;
-    formAddr : string | null;
+    fromAddr : string | null;
     toAddrs : string[];
     ccAddrs : string[];
     subject : string | null;
@@ -58,7 +58,7 @@ export interface Email {
     labels : string[];
     priority : EmailPriority;
     receivedAt : Date | null;
-    attachement : EmailAttachment[];
+    attachments : EmailAttachment[];
 }
 
 export interface EmailAttachment{
@@ -93,6 +93,10 @@ export interface SendEmailInput {
  
 export type RSVPStatus = "accepted" | "declined" | "tentative" | "needsAction";
 export type EventStatus = "confirmed" | "tentative" | "cancelled";
+
+export interface RSVPInput {
+  status: RSVPStatus;
+}
 
 export interface Attendee {
   email: string;
