@@ -8,7 +8,7 @@ export async  function POST(){
         const session = await getServerSession(authConfig);
         if(session?.user?.id){
             // Best-effort revocation — don't block logout if this fails
-            await revokeCorsairTenant(session.user.id).catch(() => null);
+            await revokeCorsairTenant(session.user.googleSub,session.user.id).catch(() => null);
         }
 
         // Clear the NextAuth session cookie

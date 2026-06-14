@@ -1,88 +1,306 @@
+// /**
+//  * Central LLM provider registry.
+//  *
+//  * Add a new model by adding one entry to CHAT_MODELS or EMBEDDING_MODELS.
+//  * Switch the active model by changing ACTIVE_CHAT_MODEL / ACTIVE_EMBEDDING_MODEL
+//  * (or set via env vars LLM_CHAT_MODEL / LLM_EMBEDDING_MODEL).
+//  *
+//  * Everything else in the codebase (chat.service.ts, priority.service.ts, etc.)
+//  * should call getChatClient() / getEmbedding() and never import a provider SDK directly.
+//  */
+
+// import OpenAI from "openai";
+// import Anthropic from "@anthropic-ai/sdk";
+// import { GoogleGenAI } from "@google/genai";
+// import { env } from "@/src/env";
+
+// // ─── Chat / tool-calling model registry ───────────────────────────────────────
+
+// export type ChatProviderKind = "anthropic" | "openrouter";
+
+// export interface ChatModelConfig {
+//   kind: ChatProviderKind;
+//   /** Model slug passed to the provider */
+//   model: string;
+// }
+
+// export const CHAT_MODELS = {
+//   "claude-sonnet-4-6": {
+//     kind: "anthropic",
+//     model: "claude-sonnet-4-6",
+//   },
+//   "nex-n2-pro": {
+//     kind: "openrouter",
+//     model: "nex-agi/nex-n2-pro:free",
+//   },
+//   "nemotron-3-ultra": {
+//     kind: "openrouter",
+//     model: "nvidia/nemotron-3-ultra-550b-a55b:free",
+//   },
+//   "nemotron-3-nano-omni": {
+//     kind: "openrouter",
+//     model: "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free",
+//   },
+//   "gpt-oss-120b": {
+//     kind: "openrouter",
+//     model: "openai/gpt-oss-120b:free",
+//   },
+// } as const satisfies Record<string, ChatModelConfig>;
+
+// export type ChatModelKey = keyof typeof CHAT_MODELS;
+
+// /** Default chat model — change this to switch models everywhere */
+// export const ACTIVE_CHAT_MODEL: ChatModelKey =
+//   (env.LLM_CHAT_MODEL as ChatModelKey | undefined) ?? "claude-sonnet-4-6";
+
+// // ─── Embedding model registry ─────────────────────────────────────────────────
+
+// export type EmbeddingProviderKind = "openrouter" | "gemini";
+
+// export interface EmbeddingModelConfig {
+//   kind: EmbeddingProviderKind;
+//   model: string;
+// }
+
+// export const EMBEDDING_MODELS = {
+//   "nemotron-embed-vl": {
+//     kind: "openrouter",
+//     model: "nvidia/llama-nemotron-embed-vl-1b-v2:free",
+//   },
+//   "gemini-embedding": {
+//     kind: "gemini",
+//     model: "gemini-embedding-001",
+//   },
+// } as const satisfies Record<string, EmbeddingModelConfig>;
+
+// export type EmbeddingModelKey = keyof typeof EMBEDDING_MODELS;
+
+// export const ACTIVE_EMBEDDING_MODEL: EmbeddingModelKey =
+//   (env.LLM_EMBEDDING_MODEL as EmbeddingModelKey | undefined) ?? "nemotron-embed-vl";
+
+// // ─── Client singletons ─────────────────────────────────────────────────────────
+
+// let _anthropic: Anthropic | null = null;
+// let _openrouter: OpenAI | null = null;
+// let _gemini: GoogleGenAI | null = null;
+
+// function getAnthropic(): Anthropic {
+//   if (!_anthropic) _anthropic = new Anthropic();
+//   return _anthropic;
+// }
+
+// function getOpenRouter(): OpenAI {
+//   if (!_openrouter) {
+//     _openrouter = new OpenAI({
+//       baseURL: "https://openrouter.ai/api/v1",
+//       apiKey: env.OPENROUTER_API_KEY,
+//       defaultHeaders: {
+//         "HTTP-Referer": env.NEXTAUTH_URL ?? "http://localhost:3000",
+//         "X-Title": "Superhuman",
+//       },
+//     });
+//   }
+//   return _openrouter;
+// }
+
+// function getGemini(): GoogleGenAI {
+//   if (!_gemini) _gemini = new GoogleGenAI({ apiKey: env.GEMINI_API_KEY });
+//   return _gemini;
+// }
+
+// // ─── Unified chat resolution ───────────────────────────────────────────────────
+
+// export interface ResolvedChatClient {
+//   kind: ChatProviderKind;
+//   model: string;
+//   /** Anthropic SDK client (only set when kind === "anthropic") */
+//   anthropic?: Anthropic;
+//   /** OpenAI-compatible client (only set when kind === "openrouter") */
+//   openai?: OpenAI;
+// }
+
+// /**
+//  * Resolve the active (or explicitly requested) chat model into a ready client.
+//  * Pass `key` to override the default, e.g. for A/B testing different models.
+//  */
+// export function getChatClient(key: ChatModelKey = ACTIVE_CHAT_MODEL): ResolvedChatClient {
+//   const config = CHAT_MODELS[key];
+
+//   if (config.kind === "anthropic") {
+//     return { kind: "anthropic", model: config.model, anthropic: getAnthropic() };
+//   }
+
+//   return { kind: "openrouter", model: config.model, openai: getOpenRouter() };
+// }
+
+// // ─── Unified embedding resolution ──────────────────────────────────────────────
+
+// export interface EmbedInput {
+//   text?: string;
+//   imageUrl?: string;
+// }
+
+// /**
+//  * Generate an embedding using the active (or explicitly requested) embedding model.
+//  * Returns a flat number[] regardless of provider.
+//  */
+// export async function getEmbedding(
+//   input: EmbedInput,
+//   key: EmbeddingModelKey = ACTIVE_EMBEDDING_MODEL,
+// ): Promise<number[]> {
+//   const config = EMBEDDING_MODELS[key];
+
+//   if (config.kind === "openrouter") {
+//     const client = getOpenRouter();
+
+//     const content: Array<Record<string, unknown>> = [];
+//     if (input.text) content.push({ type: "text", text: input.text });
+//     if (input.imageUrl) content.push({ type: "image_url", image_url: { url: input.imageUrl } });
+
+//     const res = await client.embeddings.create({
+//       model: config.model,
+//       input: [{ content }] as unknown as string[],
+//       encoding_format: "float",
+//     });
+
+//     return res.data[0]!.embedding as unknown as number[];
+//   }
+
+//   // Gemini
+//   const ai = getGemini();
+//   const result = await ai.models.embedContent({
+//     model: config.model,
+//     contents: input.text ?? "",
+//   });
+//   return result.embeddings?.[0]?.values ?? [];
+// }
+
 /**
- * Central LLM provider registry.
+ * ─── LLM Provider Registry ────────────────────────────────────────────────────
  *
- * Add a new model by adding one entry to CHAT_MODELS or EMBEDDING_MODELS.
- * Switch the active model by changing ACTIVE_CHAT_MODEL / ACTIVE_EMBEDDING_MODEL
- * (or set via env vars LLM_CHAT_MODEL / LLM_EMBEDDING_MODEL).
+ * Single source of truth for all LLM calls in this codebase.
  *
- * Everything else in the codebase (chat.service.ts, priority.service.ts, etc.)
- * should call getChatClient() / getEmbedding() and never import a provider SDK directly.
+ * TO SWITCH MODEL:  set LLM_CHAT_MODEL / LLM_EMBEDDING_MODEL in .env.local
+ * TO ADD A MODEL:   add one entry to CHAT_MODELS or EMBEDDING_MODELS — nothing
+ *                   else in the codebase needs to change.
+ *
+ * Chat model keys:
+ *   claude-sonnet-4-6  (default — Anthropic, full MCP tool-loop support)
+ *   nex-n2-pro         (OpenRouter free — strong agentic MoE)
+ *   nemotron-3-ultra   (OpenRouter free — 550B reasoning, 1M ctx)
+ *   nemotron-3-nano-omni (OpenRouter free — multimodal, fast)
+ *   gpt-oss-120b       (OpenRouter free — OpenAI open-weight MoE)
+ *
+ * Embedding model keys:
+ *   nemotron-embed-vl  (OpenRouter free — multimodal, text+image)
+ *   gemini-embedding   (Google — 3072-dim, multilingual)
+ *
+ * NOTE ON DIMENSIONS:
+ *   nemotron-embed-vl → 4096-dim  (confirmed from NVIDIA docs)
+ *   gemini-embedding-001 → 768-dim (task-type: RETRIEVAL_DOCUMENT)
+ *   The DB schema uses vector(4096) to accommodate the largest model.
+ *   Gemini vectors are zero-padded when stored.
  */
 
 import OpenAI from "openai";
 import Anthropic from "@anthropic-ai/sdk";
-import { GoogleGenAI } from "@google/genai";
 import { env } from "@/src/env";
+import { logger } from "@/src/lib/logger";
 
-// ─── Chat / tool-calling model registry ───────────────────────────────────────
+// ─── Chat / tool-calling registry ─────────────────────────────────────────────
 
 export type ChatProviderKind = "anthropic" | "openrouter";
 
 export interface ChatModelConfig {
   kind: ChatProviderKind;
-  /** Model slug passed to the provider */
   model: string;
+  /** Whether this model supports streaming tool calls (Anthropic only for now) */
+  supportsTools: boolean;
+  /** Max output tokens to request */
+  maxTokens: number;
 }
 
 export const CHAT_MODELS = {
   "claude-sonnet-4-6": {
     kind: "anthropic",
     model: "claude-sonnet-4-6",
+    supportsTools: true,
+    maxTokens: 4096,
   },
   "nex-n2-pro": {
     kind: "openrouter",
     model: "nex-agi/nex-n2-pro:free",
+    supportsTools: true,
+    maxTokens: 4096,
   },
   "nemotron-3-ultra": {
     kind: "openrouter",
     model: "nvidia/nemotron-3-ultra-550b-a55b:free",
+    supportsTools: true,
+    maxTokens: 4096,
   },
   "nemotron-3-nano-omni": {
     kind: "openrouter",
     model: "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free",
+    supportsTools: false, // reasoning model, no tool-calling
+    maxTokens: 4096,
   },
   "gpt-oss-120b": {
     kind: "openrouter",
     model: "openai/gpt-oss-120b:free",
+    supportsTools: true,
+    maxTokens: 4096,
   },
 } as const satisfies Record<string, ChatModelConfig>;
 
 export type ChatModelKey = keyof typeof CHAT_MODELS;
 
-/** Default chat model — change this to switch models everywhere */
 export const ACTIVE_CHAT_MODEL: ChatModelKey =
-  (env.LLM_CHAT_MODEL as ChatModelKey | undefined) ?? "claude-sonnet-4-6";
+  (env.LLM_CHAT_MODEL as ChatModelKey | undefined) ?? "gpt-oss-120b";
 
-// ─── Embedding model registry ─────────────────────────────────────────────────
+// ─── Embedding registry ────────────────────────────────────────────────────────
 
-export type EmbeddingProviderKind = "openrouter" | "gemini";
+export type EmbeddingProviderKind = "openrouter" | "gemini" | "openai";
 
 export interface EmbeddingModelConfig {
   kind: EmbeddingProviderKind;
   model: string;
+  /** Output dimension — must match DB vector column size */
+  dimensions: number;
 }
 
 export const EMBEDDING_MODELS = {
   "nemotron-embed-vl": {
     kind: "openrouter",
     model: "nvidia/llama-nemotron-embed-vl-1b-v2:free",
+    dimensions: 4096,
   },
   "gemini-embedding": {
     kind: "gemini",
     model: "gemini-embedding-001",
+    dimensions: 768,
+  },
+  "openai-3-small": {
+    kind: "openai",
+    model: "text-embedding-3-small",
+    dimensions: 1536,
   },
 } as const satisfies Record<string, EmbeddingModelConfig>;
 
 export type EmbeddingModelKey = keyof typeof EMBEDDING_MODELS;
 
 export const ACTIVE_EMBEDDING_MODEL: EmbeddingModelKey =
-  (env.LLM_EMBEDDING_MODEL as EmbeddingModelKey | undefined) ?? "nemotron-embed-vl";
+  (env.LLM_EMBEDDING_MODEL as EmbeddingModelKey | undefined) ?? "openai-3-small";
 
-// ─── Client singletons ─────────────────────────────────────────────────────────
+/** Dimension of the currently active embedding model */
+export const EMBEDDING_DIM =
+  EMBEDDING_MODELS[ACTIVE_EMBEDDING_MODEL].dimensions;
+
+// ─── Singleton clients ─────────────────────────────────────────────────────────
 
 let _anthropic: Anthropic | null = null;
 let _openrouter: OpenAI | null = null;
-let _gemini: GoogleGenAI | null = null;
+let _openai: OpenAI | null = null;
 
 function getAnthropic(): Anthropic {
   if (!_anthropic) _anthropic = new Anthropic();
@@ -91,6 +309,9 @@ function getAnthropic(): Anthropic {
 
 function getOpenRouter(): OpenAI {
   if (!_openrouter) {
+    if (!env.OPENROUTER_API_KEY) {
+      throw new Error("OPENROUTER_API_KEY is not set — required for OpenRouter models");
+    }
     _openrouter = new OpenAI({
       baseURL: "https://openrouter.ai/api/v1",
       apiKey: env.OPENROUTER_API_KEY,
@@ -103,37 +324,68 @@ function getOpenRouter(): OpenAI {
   return _openrouter;
 }
 
-function getGemini(): GoogleGenAI {
-  if (!_gemini) _gemini = new GoogleGenAI({ apiKey: env.GEMINI_API_KEY });
-  return _gemini;
+function getOpenAI(): OpenAI {
+  if (!_openai) {
+    if (!env.OPENAI_API_KEY) {
+      throw new Error("OPENAI_API_KEY is not set — required for OpenAI embedding model");
+    }
+    _openai = new OpenAI({ apiKey: env.OPENAI_API_KEY });
+  }
+  return _openai;
 }
 
-// ─── Unified chat resolution ───────────────────────────────────────────────────
+// ─── Resolved chat client ──────────────────────────────────────────────────────
 
 export interface ResolvedChatClient {
   kind: ChatProviderKind;
   model: string;
-  /** Anthropic SDK client (only set when kind === "anthropic") */
+  maxTokens: number;
+  supportsTools: boolean;
   anthropic?: Anthropic;
-  /** OpenAI-compatible client (only set when kind === "openrouter") */
   openai?: OpenAI;
 }
 
 /**
- * Resolve the active (or explicitly requested) chat model into a ready client.
- * Pass `key` to override the default, e.g. for A/B testing different models.
+ * Resolve the active (or overridden) chat model into a ready client.
+ *
+ * @param key - Optional override. Defaults to ACTIVE_CHAT_MODEL.
  */
 export function getChatClient(key: ChatModelKey = ACTIVE_CHAT_MODEL): ResolvedChatClient {
-  const config = CHAT_MODELS[key];
 
-  if (config.kind === "anthropic") {
-    return { kind: "anthropic", model: config.model, anthropic: getAnthropic() };
+   const resolvedKey = key ?? ACTIVE_CHAT_MODEL;
+
+  const config = CHAT_MODELS[resolvedKey];
+
+  if (!config) {
+    throw new Error(`Unknown model key: ${String(resolvedKey)}`);
   }
 
-  return { kind: "openrouter", model: config.model, openai: getOpenRouter() };
+  logger.debug("Resolved chat client", {
+    key: resolvedKey,
+    model: config.model,
+    kind: config.kind,
+  });
+
+  if (config.kind === "anthropic") {
+    return {
+      kind: "anthropic",
+      model: config.model,
+      maxTokens: config.maxTokens,
+      supportsTools: config.supportsTools,
+      anthropic: getAnthropic(),
+    };
+  }
+
+  return {
+    kind: "openrouter",
+    model: config.model,
+    maxTokens: config.maxTokens,
+    supportsTools: config.supportsTools,
+    openai: getOpenRouter(),
+  };
 }
 
-// ─── Unified embedding resolution ──────────────────────────────────────────────
+// ─── Embedding ─────────────────────────────────────────────────────────────────
 
 export interface EmbedInput {
   text?: string;
@@ -141,36 +393,74 @@ export interface EmbedInput {
 }
 
 /**
- * Generate an embedding using the active (or explicitly requested) embedding model.
+ * Generate an embedding vector using the active (or overridden) model.
  * Returns a flat number[] regardless of provider.
+ * Returns null on failure so callers can gracefully degrade.
  */
 export async function getEmbedding(
   input: EmbedInput,
   key: EmbeddingModelKey = ACTIVE_EMBEDDING_MODEL,
-): Promise<number[]> {
+): Promise<number[] | null> {
   const config = EMBEDDING_MODELS[key];
+  
 
-  if (config.kind === "openrouter") {
-    const client = getOpenRouter();
+  try {
+    // if (config.kind === "openai") {
+    //   const client = getOpenAI();
+    //   const text = input.text ?? "";
+    //   const response = await client.embeddings.create({
+    //     model: config.model,
+    //     input: text.slice(0, 8000),
+    //     encoding_format: "float",
+    //     dimensions: config.dimensions,
+    //   });
+    //   return response.data[0]?.embedding ?? null;
+    // }
 
-    const content: Array<Record<string, unknown>> = [];
-    if (input.text) content.push({ type: "text", text: input.text });
-    if (input.imageUrl) content.push({ type: "image_url", image_url: { url: input.imageUrl } });
+    // if (config.kind === "openrouter") {
+    //   const client = getOpenRouter();
+    //   // nemotron-embed-vl accepts multimodal content array
+    //   const content: Array<Record<string, unknown>> = [];
+    //   if (input.text) content.push({ type: "text", text: input.text.slice(0, 8000) });
+    //   if (input.imageUrl) {
+    //     content.push({ type: "image_url", image_url: { url: input.imageUrl } });
+    //   }
+    //   if (content.length === 0) return null;
 
-    const res = await client.embeddings.create({
+    //   const res = await client.embeddings.create({
+    //     model: config.model,
+    //     // OpenRouter multimodal embedding format
+    //     input: [{ content }] as unknown as string[],
+    //     encoding_format: "float",
+    //   });
+    //   return (res.data[0]?.embedding as unknown as number[]) ?? null;
+    // }
+
+    if (config.kind === "gemini") {
+      // Lazy import — only load if gemini model is actually used
+      const { GoogleGenAI } = await import("@google/genai");
+      if (!env.GEMINI_API_KEY) {
+        throw new Error("GEMINI_API_KEY is not set — required for Gemini embedding model");
+      }
+      const ai = new GoogleGenAI({ apiKey: env.GEMINI_API_KEY });
+      const result = await ai.models.embedContent({
+        model: config.model,
+        contents: input.text ?? "",
+        config: {
+          taskType: "RETRIEVAL_DOCUMENT",
+          outputDimensionality: config.dimensions,
+        },
+      });
+      return result.embeddings?.[0]?.values ?? null;
+    }
+  } catch (err) {
+    logger.warn("Embedding generation failed", {
+      key,
       model: config.model,
-      input: [{ content }] as unknown as string[],
-      encoding_format: "float",
+      error: String(err),
     });
-
-    return res.data[0]!.embedding as unknown as number[];
+    return null;
   }
 
-  // Gemini
-  const ai = getGemini();
-  const result = await ai.models.embedContent({
-    model: config.model,
-    contents: input.text ?? "",
-  });
-  return result.embeddings?.[0]?.values ?? [];
+  return null;
 }

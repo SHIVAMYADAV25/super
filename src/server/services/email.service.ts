@@ -1,5 +1,5 @@
 import {  ListEmailsInput, SendEmailInput } from "@/src/schema";
-import { Email, EmailListItem, PaginatedResponse } from "@/src/types";
+import { Email, EmailListItem, EmailPriority, PaginatedResponse } from "@/src/types";
 import { getTenant } from "../lib/corsair";
 import { db } from "../db";
 import { emails } from "../db/schema/emails";
@@ -7,7 +7,72 @@ import { buildRawMimeMessage, parseGmailMessage } from "../lib/gmail-parser";
 import { logger } from "@/src/lib/logger";
 import { createExternalApiError, createNotFoundError } from "@/src/lib/errors";
 import { queueEmailEmbedding } from "@/src/jobs/priority-queue";
-import { and, eq, sql } from "drizzle-orm";
+import { and, eq, sql, inArray } from "drizzle-orm";
+
+/**
+ * Bulk-fetch stored priority values for a set of gmailIds from our own
+ * `emails` table (populated by the LLM enrichment pipeline — see
+ * priority.service.ts / enrichEmail). Falls back to "normal" for any
+ * gmailId not yet enriched.
+ */
+async function getPriorityMap(
+    userId: string,
+    gmailIds: string[],
+): Promise<Map<string, EmailPriority>> {
+    const map = new Map<string, EmailPriority>();
+    if (gmailIds.length === 0) return map;
+
+    try {
+        const rows = await db
+            .select({ gmailId: emails.gmailId, priority: emails.priority })
+            .from(emails)
+            .where(and(eq(emails.userId, userId), inArray(emails.gmailId, gmailIds)));
+
+        for (const row of rows) {
+            map.set(row.gmailId, row.priority);
+        }
+    } catch (err) {
+        logger.warn("getPriorityMap failed", { userId, error: String(err) });
+    }
+
+    return map;
+}
+
+async function getExistingPriorities(
+  userId: string,
+  gmailIds: string[],
+): Promise<Set<string>> {
+  const rows = await db
+    .select({
+      gmailId: emails.gmailId,
+      priority: emails.priority,
+    })
+    .from(emails)
+    .where(
+      and(
+        eq(emails.userId, userId),
+        inArray(emails.gmailId, gmailIds),
+      ),
+    );
+
+  return new Set(
+    rows
+      .filter((r) => r.priority !== "normal")
+      .map((r) => r.gmailId),
+  );
+}
+
+/**
+ * Apply the requested priority filter to a list of EmailListItem.
+ * "all" (default) is a no-op passthrough.
+ */
+function applyPriorityFilter(
+    items: EmailListItem[],
+    priority: ListEmailsInput["priority"],
+): EmailListItem[] {
+    if (!priority || priority === "all") return items;
+    return items.filter((item) => item.priority === priority);
+}
 
 export async function listEmail(
     tenantId : string,
@@ -19,6 +84,14 @@ export async function listEmail(
         // Falls back to Gmail API if cache is cold
 
         const tenant = getTenant(tenantId);
+
+        // NOTE: priority filtering happens client-side AFTER fetching a page,
+        // since Gmail/Corsair don't know about our LLM-assigned priority.
+        // When a priority filter is active, fetch a wider page so the
+        // filtered result isn't empty just because this page had no matches.
+        const fetchLimit = opts.priority && opts.priority !== "all"
+            ? Math.min(opts.limit * 3, 100)
+            : opts.limit;
 
         let corsairMessage : Array<{
             data : {
@@ -36,7 +109,7 @@ export async function listEmail(
             // Use Gmail API for text search (Corsair routes to Gmail)
             const result = await tenant.gmail.api.messages.list({
                 q: opts.q,
-                maxResults : opts.limit,
+                maxResults : fetchLimit,
                 pageToken : opts.pageToken,
                 labelIds : opts.labelIds
             })
@@ -57,10 +130,32 @@ export async function listEmail(
             };
 
             // Upsert in background
-            void upsertEmailsBatch(userId,fullMessage);
+            await upsertEmailsBatch(userId, fullMessage);
+
+for (const msg of fullMessage) {
+  const parsed = parseGmailMessage(msg);
+
+  if (parsed.gmailId && (parsed.subject || parsed.snippet)) {
+    void queueEmailEmbedding({
+      userId,
+      gmailId: parsed.gmailId,
+      subject: parsed.subject ?? "",
+      snippet: parsed.snippet ?? "",
+      body: parsed.body ?? "",
+    });
+  }
+}
+
+            const items = fullMessage.map(mapToListItem);
+            const gmailIds = items.map((i) => i.gmailId).filter(Boolean);
+            const priorityMap = await getPriorityMap(userId, gmailIds);
+            const withPriority = items.map((item) => ({
+                ...item,
+                priority: priorityMap.get(item.gmailId) ?? item.priority,
+            }));
 
             return {
-                items : fullMessage.map(mapToListItem),
+                items : applyPriorityFilter(withPriority, opts.priority),
                 nextPageToken : result.nextPageToken,
                 total : result.resultSizeEstimate
             }
@@ -68,7 +163,7 @@ export async function listEmail(
 
         const cached = await tenant.gmail.db.messages.search({
             data : opts.labelIds?.length ? {} : {},
-            limit : opts.limit,
+            limit : fetchLimit,
             offset : opts.pageToken ? parseInt(opts.pageToken,10) : 0
         })
 
@@ -97,19 +192,19 @@ export async function listEmail(
         // Gmail API call so the inbox isn't empty.
         if (cached.length === 0 && !(opts.pageToken && parseInt(opts.pageToken, 10) > 0)) {
             const result = await tenant.gmail.api.messages.list({
-                maxResults: opts.limit,
+                maxResults: fetchLimit,
                 pageToken: opts.pageToken,
                 labelIds: opts.labelIds,
             });
 
             logger.info("FETCHING FROM GMAIL API");
 
-            const ids = (result.messages ?? []).map((m) => m.id).filter(Boolean) as string[];
+            const itemsIds = (result.messages ?? []).map((m) => m.id).filter(Boolean) as string[];
             const batchSize = 5;
             const fullMessage = [];
 
-            for (let i = 0; i < ids.length; i += batchSize) {
-                const batch = ids.slice(i, i + batchSize);
+            for (let i = 0; i < itemsIds.length; i += batchSize) {
+                const batch = itemsIds.slice(i, i + batchSize);
                 const fetched = await Promise.all(
                     batch.map((id) =>
                         tenant.gmail.api.messages.get({ id, format: "metadata" })
@@ -126,8 +221,25 @@ export async function listEmail(
                 count: fullMessage.length,
             });
             logger.info("STARTING UPSERT");
-            void upsertEmailsBatch(userId, fullMessage);
-            logger.info("Emails saved to DB");
+
+await upsertEmailsBatch(userId, fullMessage);
+
+logger.info("Emails saved to DB");
+
+// Queue enrichment for all newly fetched emails
+for (const msg of fullMessage) {
+  const parsed = parseGmailMessage(msg);
+
+  if (parsed.gmailId && (parsed.subject || parsed.snippet)) {
+    void queueEmailEmbedding({
+      userId,
+      gmailId: parsed.gmailId,
+      subject: parsed.subject ?? "",
+      snippet: parsed.snippet ?? "",
+      body: parsed.body ?? "",
+    });
+  }
+}
 
             for (const msg of fullMessage) {
                 if (msg.id) {
@@ -161,8 +273,16 @@ export async function listEmail(
                 }
             }
 
+            const items = fullMessage.map(mapToListItem);
+            const ids = items.map((i) => i.gmailId).filter(Boolean);
+            const priorityMap = await getPriorityMap(userId, ids);
+            const withPriority = items.map((item) => ({
+                ...item,
+                priority: priorityMap.get(item.gmailId) ?? item.priority,
+            }));
+
             return {
-                items: fullMessage.map(mapToListItem),
+                items: applyPriorityFilter(withPriority, opts.priority),
                 nextPageToken: result.nextPageToken,
                 total: result.resultSizeEstimate,
             };
@@ -172,8 +292,7 @@ export async function listEmail(
         //     count: cached.length,
         // });
 
-        return {
-            items : cached.map((row) =>({
+        const mapped : EmailListItem[] = cached.map((row) =>({
                 id : row.id,
                 gmailId : row.entity_id,
                 threadId : row.data.threadId ?? null,
@@ -182,14 +301,24 @@ export async function listEmail(
                 snippet: row.data.snippet ?? null,
                 isRead: !(row.data.labelIds ?? []).includes("UNREAD"),
                 labels: row.data.labelIds ?? [],
-                priority: "normal" as const, // populated async by priority service
+                priority: "normal" as const, // overwritten below from our emails table
                 receivedAt: row.data.internalDate
                 ? new Date(parseInt(row.data.internalDate, 10))
                 : null,
-            })),
+            }));
+
+        const cachedIds = mapped.map((m) => m.gmailId).filter(Boolean);
+        const priorityMap = await getPriorityMap(userId, cachedIds);
+        const withPriority = mapped.map((item) => ({
+            ...item,
+            priority: priorityMap.get(item.gmailId) ?? item.priority,
+        }));
+
+        return {
+            items : applyPriorityFilter(withPriority, opts.priority),
             nextPageToken:
-            cached.length === opts.limit ? 
-            String((opts.pageToken ? parseInt(opts.pageToken,10) : 0) + opts.limit) : undefined,
+            cached.length === fetchLimit ? 
+            String((opts.pageToken ? parseInt(opts.pageToken,10) : 0) + fetchLimit) : undefined,
         };
     } catch (error) {
         logger.error("ListEmail failed" , {userId, error : String(error)});
@@ -224,7 +353,7 @@ export async function getEmail(
         // Upsert into our Db cache
         await upsertEmail(userId,parsed);
 
-        // Queue priority classification async (fire and forget)
+        // Queue priority classification + embedding async (fire and forget)
         // if(parsed.subject || parsed.snippet){
         //     void queueEmailEmbedding({
         //         userId,
@@ -272,12 +401,13 @@ export async function getEmail(
 }
 
 export async function modifyEmail(
-    userId : string,
+    tenantId : string,   // googleSub — for Corsair
+    userId : string,     // DB UUID — for DB writes
     gmailId : string,
     opts : {isRead ?: boolean; addLabels ?: string[],removeLabels ?: string[]},
 ):Promise<void> {
     try {
-        const tenant = getTenant(userId);
+        const tenant = getTenant(tenantId);
 
         const addLabelIds : string[] = [...(opts.addLabels ?? [])];
         const removeLabelIds :string[] = [...(opts.removeLabels ?? [])];

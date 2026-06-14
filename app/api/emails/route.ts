@@ -17,7 +17,8 @@ export const GET = withAuth(async (req) => {
             folder : searchParams.get("folder") ?? undefined,
             q : searchParams.get("q") ?? undefined,
             limit : searchParams.get("limit") ?? undefined,
-            pageToken: searchParams.get("pageToken") ?? undefined
+            pageToken: searchParams.get("pageToken") ?? undefined,
+            priority: searchParams.get("priority") ?? undefined,
         });
 
         const result = await listEmail(req.user.googleSub,req.user.id,input);

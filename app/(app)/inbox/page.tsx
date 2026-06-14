@@ -229,21 +229,26 @@ export default function InboxPage() {
   const [composeOpen, setComposeOpen] = useState(false);
   const [replyTo, setReplyTo] = useState<Email | null>(null);
   const [searchOpen, setSearchOpen] = useState(false);
+  const [priorityFilter, setPriorityFilter] = useState<"all" | "high" | "normal" | "low">("all");
   const queryClient = useQueryClient();
 
   const { data, isLoading, isError, refetch } = useQuery({
-    queryKey: ["emails"],
-    queryFn: () => api.get<PaginatedResponse<EmailListItem>>("/api/emails"),
+    queryKey: ["emails", priorityFilter],
+    queryFn: () =>
+      api.get<PaginatedResponse<EmailListItem>>(
+        `/api/emails${priorityFilter !== "all" ? `?priority=${priorityFilter}` : ""}`,
+      ),
   });
 
   const archiveMutation = useMutation({
     mutationFn: (gmailId: string) => api.post(`/api/emails/${gmailId}/archive`, {}),
     onMutate: async (gmailId) => {
       // Optimistic update — remove from list immediately
-      await queryClient.cancelQueries({ queryKey: ["emails"] });
-      const prev = queryClient.getQueryData<PaginatedResponse<EmailListItem>>(["emails"]);
+      const key = ["emails", priorityFilter];
+      await queryClient.cancelQueries({ queryKey: key });
+      const prev = queryClient.getQueryData<PaginatedResponse<EmailListItem>>(key);
       if (prev) {
-        queryClient.setQueryData<PaginatedResponse<EmailListItem>>(["emails"], {
+        queryClient.setQueryData<PaginatedResponse<EmailListItem>>(key, {
           ...prev,
           items: prev.items.filter((e) => e.gmailId !== gmailId),
         });
@@ -251,7 +256,7 @@ export default function InboxPage() {
       return { prev };
     },
     onError: (_err, _id, ctx) => {
-      if (ctx?.prev) queryClient.setQueryData(["emails"], ctx.prev);
+      if (ctx?.prev) queryClient.setQueryData(["emails", priorityFilter], ctx.prev);
     },
   });
 
@@ -358,6 +363,38 @@ export default function InboxPage() {
           </div>
         </div>
 
+        {/* Priority filter tabs — backed by LLM-classified email priority */}
+        <div className="flex items-center gap-1 px-4 py-2 border-b border-border/50">
+          {([
+            { key: "all", label: "All" },
+            { key: "high", label: "High priority" },
+            { key: "normal", label: "Normal" },
+            { key: "low", label: "Low" },
+          ] as const).map((tab) => (
+            <button
+              key={tab.key}
+              onClick={() => {
+                setPriorityFilter(tab.key);
+                setSelectedId(null);
+                setSelectedIndex(0);
+              }}
+              className={`px-2.5 py-1 rounded-lg text-xs font-medium transition-colors flex items-center gap-1.5 ${
+                priorityFilter === tab.key
+                  ? "bg-surface-2 text-text-primary"
+                  : "text-text-tertiary hover:text-text-secondary hover:bg-surface-1"
+              }`}
+            >
+              {tab.key === "high" && (
+                <span className="w-1.5 h-1.5 rounded-full bg-danger shrink-0" />
+              )}
+              {tab.key === "low" && (
+                <span className="w-1.5 h-1.5 rounded-full bg-text-tertiary shrink-0" />
+              )}
+              {tab.label}
+            </button>
+          ))}
+        </div>
+
         {/* List */}
         <div className="flex-1 overflow-y-auto">
           {isLoading && (
@@ -385,13 +422,29 @@ export default function InboxPage() {
                   <path d="M3 8l7.89 4.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" strokeLinecap="round" strokeLinejoin="round" />
                 </svg>
               </div>
-              <p className="text-sm text-text-secondary">Your inbox is empty</p>
-              <button
-                onClick={() => setComposeOpen(true)}
-                className="mt-3 text-xs text-accent hover:underline"
-              >
-                Compose your first email →
-              </button>
+              {priorityFilter !== "all" ? (
+                <>
+                  <p className="text-sm text-text-secondary">
+                    No {priorityFilter} priority emails right now
+                  </p>
+                  <button
+                    onClick={() => setPriorityFilter("all")}
+                    className="mt-3 text-xs text-accent hover:underline"
+                  >
+                    Show all emails →
+                  </button>
+                </>
+              ) : (
+                <>
+                  <p className="text-sm text-text-secondary">Your inbox is empty</p>
+                  <button
+                    onClick={() => setComposeOpen(true)}
+                    className="mt-3 text-xs text-accent hover:underline"
+                  >
+                    Compose your first email →
+                  </button>
+                </>
+              )}
             </div>
           )}
 

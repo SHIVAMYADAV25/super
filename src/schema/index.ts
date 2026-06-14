@@ -34,6 +34,9 @@ export const ListEmailsSchema = z.object({
     limit : z.coerce.number().int().min(1).max(100).optional().default(50),
     labelIds : z.array(z.string()).optional(), 
     pageToken: z.string().optional(),
+    // Filter results to a single priority bucket (set by the LLM enrichment
+    // pipeline). "all" (default) returns everything.
+    priority: z.enum(["all", "high", "normal", "low"]).optional().default("all"),
 })
 
 export const EmailIdSchema = z.object({
