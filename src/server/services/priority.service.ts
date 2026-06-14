@@ -105,6 +105,7 @@ import { emails } from "../db/schema/emails";
 import { storeEmailEmbedding } from "./search.service";
 import { and, eq } from "drizzle-orm";
 import { getChatClient, ACTIVE_CHAT_MODEL } from "../lib/llm-provider";
+import { emitToUser } from "../lib/sse";
 
 const CLASSIFICATION_PROMPT = (subject: string, snippet: string) =>
   `Classify this email's priority. Reply with EXACTLY one word: high, normal, or low.
@@ -180,23 +181,66 @@ export async function enrichEmail(job: EmailEnrichmentJob): Promise<void> {
   gmailId,
   subject,
 });
-  try {
-    const [priority] = await Promise.all([
-      classifyEmailPriority(subject, snippet),
-      storeEmailEmbedding(
-        userId,
-        gmailId,
-        `${subject}\n\n${body.slice(0, 2000)}`,
-      ),
-    ]);
 
-    await db
-      .update(emails)
-      .set({ priority, updatedAt: new Date() })
-      .where(and(eq(emails.userId, userId), eq(emails.gmailId, gmailId)));
+try {
+  logger.info("START EMBEDDING", { gmailId });
 
-    logger.debug("Email enriched", { userId, gmailId, priority });
-  } catch (err) {
-    logger.error("Email enrichment failed", { userId, gmailId, error: String(err) });
-  }
+  const [priority] = await Promise.all([
+    classifyEmailPriority(subject, snippet),
+    storeEmailEmbedding(
+      userId,
+      gmailId,
+      `${subject}\n\n${body.slice(0, 2000)}`
+    ),
+  ]);
+
+  logger.info("EMBEDDING DONE", { gmailId });
+
+  logger.info("UPDATING DB", {
+    gmailId,
+    priority,
+  });
+
+  await db
+    .update(emails)
+    .set({
+      priority,
+      updatedAt: new Date(),
+    })
+    .where(
+      and(
+        eq(emails.userId, userId),
+        eq(emails.gmailId, gmailId)
+      )
+    );
+
+  logger.info("DB UPDATED", {
+    gmailId,
+  });
+
+  emitToUser(userId, {
+    type: "email_enriched",
+    data: {
+      gmailId,
+      priority,
+    },
+  });
+
+  logger.debug("Email enriched", {
+    userId,
+    gmailId,
+    priority,
+  });
+} catch (err) {
+  logger.error("Email enrichment failed", {
+    userId,
+    gmailId,
+    error: String(err),
+    stack:
+      err instanceof Error
+        ? err.stack
+        : undefined,
+  });
+}
+
 }

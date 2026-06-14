@@ -1,4 +1,5 @@
 import { handleRouteError, success } from "@/src/lib/api-response";
+import { logger } from "@/src/lib/logger";
 import { withAuth } from "@/src/middleware/auth"
 import { checkRateLimit, getRateLimitKey, RATE_LIMITS } from "@/src/middleware/rate-limit";
 import { ListEmailsSchema, SendEmailSchema } from "@/src/schema";
@@ -22,6 +23,7 @@ export const GET = withAuth(async (req) => {
         });
 
         const result = await listEmail(req.user.googleSub,req.user.id,input);
+        logger.warn("EMAIL LIST API CALLED");
 
         return success(result);
     } catch (error) {

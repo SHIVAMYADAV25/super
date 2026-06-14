@@ -405,36 +405,36 @@ export async function getEmbedding(
   
 
   try {
-    // if (config.kind === "openai") {
-    //   const client = getOpenAI();
-    //   const text = input.text ?? "";
-    //   const response = await client.embeddings.create({
-    //     model: config.model,
-    //     input: text.slice(0, 8000),
-    //     encoding_format: "float",
-    //     dimensions: config.dimensions,
-    //   });
-    //   return response.data[0]?.embedding ?? null;
-    // }
+    if (config.kind === "openai") {
+      const client = getOpenAI();
+      const text = input.text ?? "";
+      const response = await client.embeddings.create({
+        model: config.model,
+        input: text.slice(0, 8000),
+        encoding_format: "float",
+        dimensions: config.dimensions,
+      });
+      return response.data[0]?.embedding ?? null;
+    }
 
-    // if (config.kind === "openrouter") {
-    //   const client = getOpenRouter();
-    //   // nemotron-embed-vl accepts multimodal content array
-    //   const content: Array<Record<string, unknown>> = [];
-    //   if (input.text) content.push({ type: "text", text: input.text.slice(0, 8000) });
-    //   if (input.imageUrl) {
-    //     content.push({ type: "image_url", image_url: { url: input.imageUrl } });
-    //   }
-    //   if (content.length === 0) return null;
+    if (config.kind === "openrouter") {
+      const client = getOpenRouter();
+      // nemotron-embed-vl accepts multimodal content array
+      const content: Array<Record<string, unknown>> = [];
+      if (input.text) content.push({ type: "text", text: input.text.slice(0, 8000) });
+      if (input.imageUrl) {
+        content.push({ type: "image_url", image_url: { url: input.imageUrl } });
+      }
+      if (content.length === 0) return null;
 
-    //   const res = await client.embeddings.create({
-    //     model: config.model,
-    //     // OpenRouter multimodal embedding format
-    //     input: [{ content }] as unknown as string[],
-    //     encoding_format: "float",
-    //   });
-    //   return (res.data[0]?.embedding as unknown as number[]) ?? null;
-    // }
+      const res = await client.embeddings.create({
+        model: config.model,
+        // OpenRouter multimodal embedding format
+        input: [{ content }] as unknown as string[],
+        encoding_format: "float",
+      });
+      return (res.data[0]?.embedding as unknown as number[]) ?? null;
+    }
 
     if (config.kind === "gemini") {
       // Lazy import — only load if gemini model is actually used

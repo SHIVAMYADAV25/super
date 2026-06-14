@@ -232,6 +232,25 @@ export default function InboxPage() {
   const [priorityFilter, setPriorityFilter] = useState<"all" | "high" | "normal" | "low">("all");
   const queryClient = useQueryClient();
 
+  useEffect(() => {
+  const es = new EventSource("/api/events/stream");
+
+  const refresh = () => {
+    queryClient.invalidateQueries({
+      queryKey: ["emails"],
+    });
+  };
+
+  es.addEventListener("email_enriched", refresh);
+  es.addEventListener("new_email", refresh);
+
+  return () => {
+    es.removeEventListener("email_enriched", refresh);
+    es.removeEventListener("new_email", refresh);
+    es.close();
+  };
+}, [queryClient]);
+
   const { data, isLoading, isError, refetch } = useQuery({
     queryKey: ["emails", priorityFilter],
     queryFn: () =>

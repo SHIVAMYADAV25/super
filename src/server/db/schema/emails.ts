@@ -3,17 +3,16 @@ import { users } from "./users";
 import { EmailAttachment, EmailPriority } from "@/src/types";
 
 
-const vector = customType<{data : number[]; driverData : string}>({
-    dataType(){
-        return "vector(1536)";
-    },
-    fromDriver(value:string):number[]{
-        // Postgres returns vector as "[0.1,0.2,...]"
+const vector = customType<{ data: number[]; driverData: string }>({
+  dataType() {
+    return "vector(768)";
+  },
+  fromDriver(value: string): number[] {
     return JSON.parse(value.replace(/^\[/, "[").replace(/\]$/, "]"));
-    },
-    toDriver( value: number[]):string {
-        return `[${value.join(",")}]`
-    },
+  },
+  toDriver(value: number[]): string {
+    return `[${value.join(",")}]`;
+  },
 });
 
 export const emails = pgTable(

@@ -5,6 +5,12 @@ import { useQuery } from "@tanstack/react-query";
 import { api } from "@/src/lib/api-client";
 import type { SearchResult } from "@/src/types";
 import { formatDistanceToNow } from "date-fns";
+import {
+  GmailQueryBuilder,
+  EMPTY_FILTERS,
+  buildGmailQuery,
+  type GmailQueryFilters,
+} from "./gmail-query-builder";
 
 interface SearchCommandProps {
   onClose: () => void;
@@ -84,6 +90,9 @@ export function SearchCommand({ onClose }: SearchCommandProps) {
   const [query, setQuery] = useState("");
   const [debouncedQuery, setDebouncedQuery] = useState("");
   const [selectedIndex, setSelectedIndex] = useState(0);
+  const [showAdvanced, setShowAdvanced] = useState(false);
+  const [advancedFilters, setAdvancedFilters] = useState<GmailQueryFilters>(EMPTY_FILTERS);
+  const [advancedQuery, setAdvancedQuery] = useState(""); // applied Gmail operator query
   const inputRef = useRef<HTMLInputElement>(null);
 
   // Debounce 300ms
@@ -93,15 +102,21 @@ export function SearchCommand({ onClose }: SearchCommandProps) {
   }, [query]);
 
   // Reset selection when results change
-  useEffect(() => setSelectedIndex(0), [debouncedQuery]);
+  useEffect(() => setSelectedIndex(0), [debouncedQuery, advancedQuery]);
+
+  // Effective query: advanced operator query takes priority when set,
+  // since `from:x has:attachment` etc. needs Gmail's exact search syntax
+  // (semantic search on operator text would return nothing useful).
+  const effectiveQuery = advancedQuery || debouncedQuery;
+  const effectiveMode = advancedQuery ? "text" : "both";
 
   const { data, isLoading } = useQuery({
-    queryKey: ["search", debouncedQuery],
+    queryKey: ["search", effectiveQuery, effectiveMode],
     queryFn: () =>
       api.get<{ results: SearchResult[] }>(
-        `/api/search?q=${encodeURIComponent(debouncedQuery)}&mode=both`,
+        `/api/search?q=${encodeURIComponent(effectiveQuery)}&mode=${effectiveMode}`,
       ),
-    enabled: debouncedQuery.trim().length > 0,
+    enabled: effectiveQuery.trim().length > 0,
     staleTime: 30_000,
   });
 
@@ -167,14 +182,69 @@ export function SearchCommand({ onClose }: SearchCommandProps) {
           <input
             ref={inputRef}
             value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            placeholder="Search emails and events..."
+            onChange={(e) => {
+              setQuery(e.target.value);
+              if (advancedQuery) setAdvancedQuery("");
+            }}
+            placeholder={advancedQuery ? "Advanced filters active — edit below" : "Search emails and events..."}
             className="flex-1 bg-transparent text-sm text-text-primary placeholder:text-text-tertiary outline-none"
           />
+          <button
+            type="button"
+            onClick={() => setShowAdvanced((v) => !v)}
+            title="Advanced Gmail search"
+            className={`p-1.5 rounded-lg transition-colors ${
+              showAdvanced || advancedQuery
+                ? "bg-accent/10 text-accent"
+                : "text-text-tertiary hover:text-text-secondary hover:bg-surface-2"
+            }`}
+          >
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <line x1="4" y1="6" x2="20" y2="6" strokeLinecap="round" />
+              <line x1="4" y1="12" x2="14" y2="12" strokeLinecap="round" />
+              <line x1="4" y1="18" x2="10" y2="18" strokeLinecap="round" />
+              <circle cx="18" cy="12" r="2" />
+              <circle cx="14" cy="18" r="2" />
+            </svg>
+          </button>
           <kbd className="text-xs text-text-tertiary bg-surface-2 px-1.5 py-0.5 rounded border border-border">
             Esc
           </kbd>
         </div>
+
+        {/* Advanced Gmail search builder */}
+        {showAdvanced && (
+          <GmailQueryBuilder
+            filters={advancedFilters}
+            onChange={setAdvancedFilters}
+            onApply={() => {
+              const built = buildGmailQuery(advancedFilters);
+              setAdvancedQuery(built);
+              setQuery(built);
+              setShowAdvanced(false);
+            }}
+          />
+        )}
+
+        {/* Active advanced query banner */}
+        {advancedQuery && !showAdvanced && (
+          <div className="flex items-center justify-between gap-2 px-4 py-2 border-b border-border bg-accent/5">
+            <p className="text-xs font-mono text-text-secondary truncate">
+              Advanced: {advancedQuery}
+            </p>
+            <button
+              type="button"
+              onClick={() => {
+                setAdvancedQuery("");
+                setAdvancedFilters(EMPTY_FILTERS);
+                setQuery("");
+              }}
+              className="text-xs text-text-tertiary hover:text-text-secondary shrink-0 transition-colors"
+            >
+              Clear
+            </button>
+          </div>
+        )}
 
         {/* Results or suggestions */}
         <div className="max-h-80 overflow-y-auto">

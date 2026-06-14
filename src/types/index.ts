@@ -170,6 +170,6 @@ export interface ChatMessage {
 // ─── Webhook SSE ───────────────────────────────────────────────────────────────
  
 export interface SSEEvent {
-  type: "new_email" | "new_event" | "updated_event" | "heartbeat";
+  type: "new_email" | "new_event" | "updated_event" | "heartbeat" | "email_enriched";
   data?: unknown;
 }

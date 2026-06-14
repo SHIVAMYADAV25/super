@@ -83,6 +83,10 @@ export async function queueEmailEmbedding(job: EmailEnrichmentJob): Promise<void
 
     void q.add(async () => {
       try {
+        logger.warn("QUEUE EMAIL EMBEDDING", {
+  gmailId: job.gmailId,
+  stack: new Error().stack,
+});
         // Dynamic import to avoid circular deps at module load time
         const { enrichEmail } = await import("../server/services/priority.service");
         
