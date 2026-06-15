@@ -421,130 +421,130 @@ export async function processCommand(
 
       if (client.supportsTools) {
         // Build simple tool definitions that describe what Corsair can do
-        // const tools: OpenAI.Chat.ChatCompletionTool[] = [
-        //   {
-        //     type: "function",
-        //     function: {
-        //       name: "execute_gmail_action",
-        //       description: "Execute a Gmail action: list, read, send, archive, label emails",
-        //       parameters: {
-        //         type: "object",
-        //         properties: {
-        //           action: { type: "string", enum: ["list", "read", "send", "archive", "label", "search"] },
-        //           params: { type: "object", description: "Action-specific parameters" },
-        //         },
-        //         required: ["action", "params"],
-        //       },
-        //     },
-        //   },
-        //   {
-        //     type: "function",
-        //     function: {
-        //       name: "execute_calendar_action",
-        //       description: "Execute a Google Calendar action: list, create, update, delete events, check availability",
-        //       parameters: {
-        //         type: "object",
-        //         properties: {
-        //           action: { type: "string", enum: ["list", "create", "update", "delete", "availability", "rsvp"] },
-        //           params: { type: "object", description: "Action-specific parameters" },
-        //         },
-        //         required: ["action", "params"],
-        //       },
-        //     },
-        //   },
-        // ];
+        const tools: OpenAI.Chat.ChatCompletionTool[] = [
+          {
+            type: "function",
+            function: {
+              name: "execute_gmail_action",
+              description: "Execute a Gmail action: list, read, send, archive, label emails",
+              parameters: {
+                type: "object",
+                properties: {
+                  action: { type: "string", enum: ["list", "read", "send", "archive", "label", "search"] },
+                  params: { type: "object", description: "Action-specific parameters" },
+                },
+                required: ["action", "params"],
+              },
+            },
+          },
+          {
+            type: "function",
+            function: {
+              name: "execute_calendar_action",
+              description: "Execute a Google Calendar action: list, create, update, delete events, check availability",
+              parameters: {
+                type: "object",
+                properties: {
+                  action: { type: "string", enum: ["list", "create", "update", "delete", "availability", "rsvp"] },
+                  params: { type: "object", description: "Action-specific parameters" },
+                },
+                required: ["action", "params"],
+              },
+            },
+          },
+        ];
 
-        const client = new OpenAI({
-          apiKey: process.env.OPENROUTER_API_KEY,
-          baseURL: "https://openrouter.ai/api/v1",
-        });
+        // const client = new OpenAI({
+        //   apiKey: process.env.OPENROUTER_API_KEY,
+        //   baseURL: "https://openrouter.ai/api/v1",
+        // });
         
 
-        // const completion = await openai.chat.completions.create({
-        //   model: client.model,
-        //   messages: [
-        //     { role: "system", content: systemPrompt },
-        //     ...userMessages,
-        //   ],
-        //   tools,
-        //   tool_choice: "auto",
-        // //   reasoning: { enabled: true } as Record<string, unknown>,
-        // });
+        const completion = await openai.chat.completions.create({
+          model: client.model,
+          messages: [
+            { role: "system", content: systemPrompt },
+            ...userMessages,
+          ],
+          tools,
+          tool_choice: "auto",
+        //   reasoning: { enabled: true } as Record<string, unknown>,
+        });
 
-        const response = await client.responses.create({
-  model: "openai/gpt-oss-120b:free",
+//         const response = await client.responses.create({
+//   model: "openai/gpt-oss-120b:free",
 
-  tools: [
-  {
-    type: "mcp",
-    server_label: "corsair",
-    server_url: `${process.env.NEXTAUTH_URL}/api/mcp`,
-  },
-],
+//   tools: [
+//   {
+//     type: "mcp",
+//     server_label: "corsair",
+//     server_url: `${process.env.NEXTAUTH_URL}/api/mcp`,
+//   },
+// ],
 
-  input: input.prompt,
-});
+//   input: input.prompt,
+// });
 
-reply = response.output_text || "Task completed.";
+// reply = response.output_text || "Task completed.";
 
         // Handle tool calls if present
         // const choice = completion.choices[0]!;
-        // const choice = completion.choices[0]!;
-        // reply = choice.message.content ?? "Task completed.";
-        // if (choice.finish_reason === "tool_calls" && choice.message.tool_calls) {
-//           const tenantCorsair = corsair.withTenant(corsairTenantId);
-//           const toolResults: string[] = [];
+        const choice = completion.choices[0]!;
+        reply = choice.message.content ?? "Task completed.";
+        if (choice.finish_reason === "tool_calls" && choice.message.tool_calls) {
+          const tenantCorsair = corsair.withTenant(corsairTenantId);
+          const toolResults: string[] = [];
 
-//           for (const toolCall of choice.message.tool_calls) {
-//   if (toolCall.type !== "function") {
-//     continue;
-//   }
+          for (const toolCall of choice.message.tool_calls) {
+  if (toolCall.type !== "function") {
+    continue;
+  }
 
-//   try {
-//     const args = JSON.parse(toolCall.function.arguments);
-//     let result: unknown;
+  try {
+    const args = JSON.parse(toolCall.function.arguments);
+    let result: unknown;
 
-//     if (toolCall.function.name === "execute_gmail_action") {
-//       result = await dispatchGmailAction(
-//         tenantCorsair,
-//         args.action,
-//         args.params,
-//       );
-//     } else if (
-//       toolCall.function.name === "execute_calendar_action"
-//     ) {
-//       result = await dispatchCalendarAction(
-//         tenantCorsair,
-//         args.action,
-//         args.params,
-//       );
-//     }
+    if (toolCall.function.name === "execute_gmail_action") {
+      result = await dispatchGmailAction(
+        tenantCorsair,
+        args.action,
+        args.params,
+      );
+    } else if (
+      toolCall.function.name === "execute_calendar_action"
+    ) {
+      result = await dispatchCalendarAction(
+        tenantCorsair,
+        args.action,
+        args.params,
+      );
+    }
 
-//     toolResults.push(
-//       `${toolCall.function.name}: ${JSON.stringify(result)}`
-//     );
-//   } catch (toolErr) {
-//     toolResults.push(
-//       `${toolCall.function.name} error: ${String(toolErr)}`
-//     );
-//   }
-// }
+    toolResults.push(
+      `${toolCall.function.name}: ${JSON.stringify(result)}`
+    );
+  } catch (toolErr) {
+    toolResults.push(
+      `${toolCall.function.name} error: ${String(toolErr)}`
+    );
+  }
+}
 
-//           // Second pass: summarize results
-//           const followUp = await openai.chat.completions.create({
-//             model: client.model,
-//             messages: [
-//               { role: "system", content: systemPrompt },
-//               ...userMessages,
-//               { role: "assistant", content: choice.message.content ?? "" },
-//               { role: "user", content: `Tool results:\n${toolResults.join("\n")}\n\nSummarize what was accomplished.` },
-//             ],
-//           });
+          // Second pass: summarize results
+          const followUp = await openai.chat.completions.create({
+            model: client.model,
+            messages: [
+              { role: "system", content: systemPrompt },
+              ...userMessages,
+              { role: "assistant", content: choice.message.content ?? "" },
+              { role: "user", content: `Tool results:\n${toolResults.join("\n")}\n\nSummarize what was accomplished.` },
+            ],
+          });
 
-//           reply = followUp.choices[0]?.message?.content ?? "Task completed.";
-        // } else {
-        //   reply = choice.message.content ?? "Task completed.";
-        // }
+          reply = followUp.choices[0]?.message?.content ?? "Task completed.";
+        } else {
+          reply = choice.message.content ?? "Task completed.";
+        }
       } else {
         // Reasoning model — plain completion
         const completion = await openai.chat.completions.create({
@@ -652,75 +652,75 @@ export async function* streamCommand(
 import type { CorsairTenant } from "../lib/corsair";
 // type OpenAI = import("openai").default;
 
-// async function dispatchGmailAction(
-//   tenant: CorsairTenant,
-//   action: string,
-//   params: Record<string, unknown>,
-// ): Promise<unknown> {
-//   switch (action) {
-//     case "list":
-//     case "search":
-//       return tenant.gmail.api.messages.list({
-//         maxResults: (params.maxResults as number) ?? 20,
-//         q: params.q as string | undefined,
-//         labelIds: params.labelIds as string[] | undefined,
-//       });
-//     case "read":
-//       return tenant.gmail.api.messages.get({ id: params.id as string });
-//     case "send": {
-//       const lines = [
-//         `From: me`,
-//         `To: ${params.to}`,
-//         ...(params.cc ? [`Cc: ${params.cc}`] : []),
-//         `Subject: ${params.subject}`,
-//         `Content-Type: text/plain; charset=utf-8`,
-//         ``,
-//         params.body as string,
-//       ];
-//       const raw = Buffer.from(lines.join("\r\n"))
-//         .toString("base64")
-//         .replace(/\+/g, "-")
-//         .replace(/\//g, "_")
-//         .replace(/=+$/, "");
-//       return tenant.gmail.api.messages.send({ raw });
-//     }
-//     default:
-//       throw new Error(`Unknown gmail action: ${action}`);
-//   }
-// }
+async function dispatchGmailAction(
+  tenant: CorsairTenant,
+  action: string,
+  params: Record<string, unknown>,
+): Promise<unknown> {
+  switch (action) {
+    case "list":
+    case "search":
+      return tenant.gmail.api.messages.list({
+        maxResults: (params.maxResults as number) ?? 20,
+        q: params.q as string | undefined,
+        labelIds: params.labelIds as string[] | undefined,
+      });
+    case "read":
+      return tenant.gmail.api.messages.get({ id: params.id as string });
+    case "send": {
+      const lines = [
+        `From: me`,
+        `To: ${params.to}`,
+        ...(params.cc ? [`Cc: ${params.cc}`] : []),
+        `Subject: ${params.subject}`,
+        `Content-Type: text/plain; charset=utf-8`,
+        ``,
+        params.body as string,
+      ];
+      const raw = Buffer.from(lines.join("\r\n"))
+        .toString("base64")
+        .replace(/\+/g, "-")
+        .replace(/\//g, "_")
+        .replace(/=+$/, "");
+      return tenant.gmail.api.messages.send({ raw });
+    }
+    default:
+      throw new Error(`Unknown gmail action: ${action}`);
+  }
+}
 
-// async function dispatchCalendarAction(
-//   tenant: CorsairTenant,
-//   action: string,
-//   params: Record<string, unknown>,
-// ): Promise<unknown> {
-//   switch (action) {
-//     case "list":
-//       return tenant.googlecalendar.api.events.getMany({
-//         timeMin: (params.timeMin as string) ?? new Date().toISOString(),
-//         timeMax: params.timeMax as string | undefined,
-//         maxResults: (params.maxResults as number) ?? 20,
-//         singleEvents: true,
-//         orderBy: "startTime",
-//       });
-//     case "create":
-//       return tenant.googlecalendar.api.events.create({
-//         event: params.event as Record<string, unknown>,
-//         sendUpdates: (params.sendUpdates as "all" | "externalOnly" | "none") ?? "all",
-//       });
-//     case "update":
-//       return tenant.googlecalendar.api.events.update({
-//         id: params.id as string,
-//         event: params.event as Record<string, unknown>,
-//         sendUpdates: (params.sendUpdates as "all" | "externalOnly" | "none") ?? "all",
-//       });
-//     case "availability":
-//       return tenant.googlecalendar.api.calendar.getAvailability({
-//         timeMin: params.timeMin as string,
-//         timeMax: params.timeMax as string,
-//         items: (params.items as Array<{ id: string }>) ?? [{ id: "primary" }],
-//       });
-//     default:
-//       throw new Error(`Unknown calendar action: ${action}`);
-//   }
-// }
+async function dispatchCalendarAction(
+  tenant: CorsairTenant,
+  action: string,
+  params: Record<string, unknown>,
+): Promise<unknown> {
+  switch (action) {
+    case "list":
+      return tenant.googlecalendar.api.events.getMany({
+        timeMin: (params.timeMin as string) ?? new Date().toISOString(),
+        timeMax: params.timeMax as string | undefined,
+        maxResults: (params.maxResults as number) ?? 20,
+        singleEvents: true,
+        orderBy: "startTime",
+      });
+    case "create":
+      return tenant.googlecalendar.api.events.create({
+        event: params.event as Record<string, unknown>,
+        sendUpdates: (params.sendUpdates as "all" | "externalOnly" | "none") ?? "all",
+      });
+    case "update":
+      return tenant.googlecalendar.api.events.update({
+        id: params.id as string,
+        event: params.event as Record<string, unknown>,
+        sendUpdates: (params.sendUpdates as "all" | "externalOnly" | "none") ?? "all",
+      });
+    case "availability":
+      return tenant.googlecalendar.api.calendar.getAvailability({
+        timeMin: params.timeMin as string,
+        timeMax: params.timeMax as string,
+        items: (params.items as Array<{ id: string }>) ?? [{ id: "primary" }],
+      });
+    default:
+      throw new Error(`Unknown calendar action: ${action}`);
+  }
+}
