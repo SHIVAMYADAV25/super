@@ -1,6 +1,7 @@
 import type { Config } from "tailwindcss";
 
 export default {
+  darkMode: "class",
   content: [
     "./app/**/*.{ts,tsx}",
     "./src/**/*.{ts,tsx}",
@@ -8,54 +9,41 @@ export default {
   theme: {
     extend: {
       colors: {
-        // Superhuman-inspired palette
+        background: "var(--background)",
+        foreground: "var(--foreground)",
         surface: {
-          0: "#0f0f10",
-          1: "#1a1a1c",
-          2: "#242427",
-          3: "#2e2e32",
+          0: "var(--surface-0)",
+          1: "var(--surface-1)",
+          2: "var(--surface-2)",
+          sidebar: "var(--surface-sidebar)",
         },
-        border: {
-          DEFAULT: "#2e2e32",
-          subtle: "#242427",
-        },
+        border: "var(--border)",
         text: {
-          primary: "#f5f5f5",
-          secondary: "#a0a0ab",
-          tertiary: "#6b6b76",
+          primary: "var(--text-primary)",
+          secondary: "var(--text-secondary)",
+          tertiary: "var(--text-tertiary)",
         },
         accent: {
-          DEFAULT: "#5b4cf5",
-          hover: "#4e41d8",
-          light: "#2e1065",
+          DEFAULT: "var(--accent)",
+          hover: "var(--accent-hover)",
         },
-        success: "#22c55e",
-        warning: "#f59e0b",
-        danger: "#ef4444",
+        tag: {
+          product: { bg: "var(--tag-product-bg)", text: "var(--tag-product-text)" },
+          design: { bg: "var(--tag-design-bg)", text: "var(--tag-design-text)" },
+          support: { bg: "var(--tag-support-bg)", text: "var(--tag-support-text)" },
+          marketing: { bg: "var(--tag-marketing-bg)", text: "var(--tag-marketing-text)" },
+        }
       },
-      fontFamily: {
-        sans: ["Inter", "system-ui", "sans-serif"],
-        mono: ["JetBrains Mono", "Fira Code", "monospace"],
+      letterSpacing: {
+        "super-wide": "0.06em",
+        "super-tight": "-0.012em",
       },
-      animation: {
-        "fade-in": "fadeIn 150ms ease-out",
-        "slide-up": "slideUp 200ms ease-out",
-        shimmer: "shimmer 1.5s infinite",
-      },
-      keyframes: {
-        fadeIn: {
-          "0%": { opacity: "0" },
-          "100%": { opacity: "1" },
-        },
-        slideUp: {
-          "0%": { opacity: "0", transform: "translateY(8px)" },
-          "100%": { opacity: "1", transform: "translateY(0)" },
-        },
-        shimmer: {
-          "0%": { backgroundPosition: "-200% 0" },
-          "100%": { backgroundPosition: "200% 0" },
-        },
-      },
+      fontSize: {
+        xxs: ["11px", { lineHeight: "14px" }],
+        xs: ["13px", { lineHeight: "17px" }],
+        sm: ["14px", { lineHeight: "19px" }],
+        base: ["15px", { lineHeight: "22px" }],
+      }
     },
   },
   plugins: [],

@@ -48,8 +48,17 @@ async function getPriorityMap(
 }
 
 /**
- * Return the set of gmailIds that already have a non-default priority in the DB.
- * Used to skip re-queuing enrichment for already-classified emails.
+ * Return the set of gmailIds that have already completed enrichment
+ * (priority classification + embedding) in the DB.
+ *
+ * Embedding presence is used as the SOLE completion signal — enrichEmail
+ * runs classification and embedding together via Promise.all and re-throws
+ * if embedding fails, so embedding != null implies priority was also set
+ * (even if that priority value happens to be "normal").
+ *
+ * Using priority != 'normal' as a signal would incorrectly re-queue
+ * correctly-classified "normal" emails forever; using embedding alone
+ * avoids that while still catching genuinely unenriched rows.
  */
 async function getClassifiedGmailIds(
   userId: string,
@@ -64,6 +73,7 @@ async function getClassifiedGmailIds(
       and(
         eq(emails.userId, userId),
         inArray(emails.gmailId, gmailIds),
+        sql`${emails.embedding} IS NOT NULL`,
       ),
     );
 
@@ -76,6 +86,7 @@ async function getClassifiedGmailIds(
  */
 async function queueUnclassifiedEmails(
   userId: string,
+  tenantId: string, 
   parsedEmails: Array<{ gmailId: string; subject: string | null; snippet: string | null; body: string | null }>,
 ): Promise<void> {
   if (parsedEmails.length === 0) return;
@@ -93,6 +104,7 @@ async function queueUnclassifiedEmails(
     
     void queueEmailEmbedding({
       userId,
+      tenantId,
       gmailId: email.gmailId,
       subject: email.subject ?? "",
       snippet: email.snippet ?? "",
@@ -149,7 +161,7 @@ export async function listEmail(
 
       // Queue enrichment only for unclassified emails
       const parsed = inboxMessages.map((m) => parseGmailMessage(m));
-      await queueUnclassifiedEmails(userId, parsed);
+      await queueUnclassifiedEmails(userId,tenantId, parsed);
 
       const items = inboxMessages.map(mapToListItem);
       const gmailIds = items.map((i) => i.gmailId).filter(Boolean);
@@ -175,6 +187,8 @@ export async function listEmail(
       offset,
     });
 
+    console.log(cached)
+
     // const cached: any[] = []
 
     // Filter out drafts/sent/trash/spam from cache results
@@ -188,9 +202,20 @@ export async function listEmail(
     }
 
     // Cache hit — map to UI items
+
+    // TEMP DEBUG — remove after checking shape
+if (inboxCached.length > 0) {
+  logger.warn("CACHE ROW SHAPE", {
+    entity_id: inboxCached[0].entity_id,
+    row_id: inboxCached[0].id,
+    data_keys: Object.keys(inboxCached[0].data ?? {}),
+    raw_sample: JSON.stringify(inboxCached[0]).slice(0, 1000),
+  });
+}
+
     const mapped: EmailListItem[] = inboxCached.map((row) => ({
       id: row.id,
-      gmailId: row.entity_id,
+      gmailId: (row.data as any).id ?? row.entity_id,
       threadId: row.data.threadId ?? null,
       fromAddr: row.data.from ?? null,
       subject: row.data.subject ?? null,
@@ -210,14 +235,15 @@ export async function listEmail(
     // emails were never classified. We also need to upsert into our DB if the
     // row doesn't exist yet (Corsair cache populated by webhook, our DB may lag).
     const parsedForQueue = inboxCached.map((row) => ({
-      gmailId: row.entity_id,
+      gmailId: (row.data as any).id ?? row.entity_id,
       subject: row.data.subject ?? null,
       snippet: row.data.snippet ?? null,
       body: null, // cache doesn't store body
     }));
-    await queueUnclassifiedEmails(userId, parsedForQueue);
+    await queueUnclassifiedEmails(userId,tenantId, parsedForQueue);
 
     const priorityMap = await getPriorityMap(userId, cachedIds);
+
 
     logger.info("PRIORITY MAP", {
         count: priorityMap.size,
@@ -304,7 +330,7 @@ async function fetchFromGmailApi(
 
   // Queue enrichment for unclassified emails only
   const parsed = inboxMessages.map((m) => parseGmailMessage(m));
-  await queueUnclassifiedEmails(userId, parsed);
+  await queueUnclassifiedEmails(userId,tenantId,parsed);
 
   const items = inboxMessages.map(mapToListItem);
   const gmailIds = items.map((i) => i.gmailId).filter(Boolean);
@@ -373,7 +399,7 @@ export async function getEmail(
 
     // Queue enrichment only if not yet classified
     if (parsed.subject || parsed.snippet) {
-      await queueUnclassifiedEmails(userId, [
+      await queueUnclassifiedEmails(userId,gmailTenantId, [
         {
           gmailId: parsed.gmailId,
           subject: parsed.subject,
@@ -598,10 +624,14 @@ async function upsertEmail(
           snippet: parsed.snippet,
           isRead: parsed.isRead,
           labels: parsed.labels,
-          body: parsed.body ?? sql`${emails.body}`, // Don't overwrite full body with null
+          body: parsed.body ?? sql`${emails.body}`,
           updatedAt: new Date(),
+          // ✅ Preserve enriched fields — only update if currently default
+          priority: sql`CASE WHEN ${emails.priority} = 'normal' AND excluded.priority != 'normal' THEN excluded.priority ELSE ${emails.priority} END`,
+          // ✅ Never overwrite a stored embedding
+          embedding: sql`COALESCE(${emails.embedding}, excluded.embedding)`,
         },
-      });
+      })
   } catch (err) {
     logger.warn("upsertEmail failed", { gmailId: parsed.gmailId, error: String(err) });
   }

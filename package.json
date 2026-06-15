@@ -23,6 +23,7 @@
     "drizzle-kit": "^0.31.10",
     "drizzle-orm": "^0.45.2",
     "isomorphic-dompurify": "^3.16.0",
+    "lucide-react": "^1.18.0",
     "nanoid": "^5.1.11",
     "next": "16.2.7",
     "next-auth": "^4.24.14",

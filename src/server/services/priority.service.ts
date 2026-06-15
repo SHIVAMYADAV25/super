@@ -106,6 +106,9 @@ import { storeEmailEmbedding } from "./search.service";
 import { and, eq } from "drizzle-orm";
 import { getChatClient, ACTIVE_CHAT_MODEL } from "../lib/llm-provider";
 import { emitToUser } from "../lib/sse";
+import { getTenantId } from "../lib/corsair";
+
+
 
 const CLASSIFICATION_PROMPT = (subject: string, snippet: string) =>
   `Classify this email's priority. Reply with EXACTLY one word: high, normal, or low.
@@ -162,6 +165,7 @@ export async function classifyEmailPriority(
 
 export interface EmailEnrichmentJob {
   userId: string;
+  tenantId: string;
   gmailId: string;
   subject: string;
   snippet: string;
@@ -175,7 +179,14 @@ export interface EmailEnrichmentJob {
  * 3. Persist priority in DB
  */
 export async function enrichEmail(job: EmailEnrichmentJob): Promise<void> {
-  const { userId, gmailId, subject, snippet, body } = job;
+  const {
+  userId,
+  tenantId,
+  gmailId,
+  subject,
+  snippet,
+  body,
+} = job;
 
   logger.info("CLASSIFYING EMAIL", {
   gmailId,
@@ -218,7 +229,7 @@ try {
     gmailId,
   });
 
-  emitToUser(userId, {
+  emitToUser(getTenantId(tenantId), {
     type: "email_enriched",
     data: {
       gmailId,

@@ -1,46 +1,238 @@
 "use client";
 
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/src/lib/api-client";
-// import type { EmailListItem, Email, PaginatedResponse } from "@/types";
-import { EmailListItem , Email, PaginatedResponse } from "@/src/types";
-import { formatDistanceToNow } from "date-fns";
+import { EmailListItem, Email, PaginatedResponse } from "@/src/types";
 import DOMPurify from "isomorphic-dompurify";
 import { ComposeModal } from "@/src/components/compose/compose-modal";
 import { SearchCommand } from "@/src/components/search/search-command";
+import { isToday, isYesterday, subDays, isAfter, startOfMonth } from "date-fns";
+import { Pencil, Search } from "lucide-react";
 
-// ─── Skeleton loader ──────────────────────────────────────────────────────────
+const TIMELINE_ORDER = ["Today", "Yesterday", "Last 7 days", "Earlier this month"];
 
-function EmailRowSkeleton() {
-  return (
-    <div className="flex items-center gap-3 px-4 py-3 border-b border-border/50">
-      <div className="w-2 h-2 rounded-full skeleton shrink-0" />
-      <div className="flex-1 min-w-0 space-y-1.5">
-        <div className="h-3.5 w-32 skeleton rounded" />
-        <div className="h-3 w-full skeleton rounded" />
-      </div>
-      <div className="h-3 w-12 skeleton rounded shrink-0" />
-    </div>
-  );
+type TabType = "inbox"| "important" | "secondary" | "standard_feed" | "notification" | "support" | "others";
+
+function getTimelineGroup(dateString: string | undefined): string {
+  if (!dateString) return "Earlier this month";
+  const date = new Date(dateString);
+  if (isToday(date)) return "Today";
+  if (isYesterday(date)) return "Yesterday";
+  if (isAfter(date, subDays(new Date(), 7))) return "Last 7 days";
+  if (isAfter(date, startOfMonth(new Date()))) return "Earlier this month";
+  return "Earlier this month";
 }
 
-// ─── Priority badge ───────────────────────────────────────────────────────────
-
-function PriorityDot({ priority }: { priority: string }) {
-  if (priority === "normal") return null;
-  return (
-    <div
-      title={`${priority} priority`}
-      className={`w-1.5 h-1.5 rounded-full shrink-0 ${
-        priority === "high" ? "bg-danger" : "bg-text-tertiary"
-      }`}
-    />
-  );
+interface BadgeProp {
+  name: string;
+  style: string;
 }
 
-// ─── Email row ────────────────────────────────────────────────────────────────
+function getInlineBadgeProps(subject: string = "", labels: string[] = []): BadgeProp[] {
+  const lookups = [...labels, subject].join(" ").toLowerCase();
+  const matchedBadges: BadgeProp[] = [];
 
+  // 1. URGENT
+  if (
+    lookups.includes("urgent") || 
+    lookups.includes("immediately") || 
+    lookups.includes("critical") || 
+    lookups.includes("asap") || 
+    lookups.includes("attention required") ||
+    lookups.includes("failed production")
+  ) {
+    matchedBadges.push({ name: "urgent", style: "bg-[var(--tag-urgent-bg)] text-[var(--tag-urgent-text)] border border-red-500/10" });
+  }
+
+  // 2. ACTION REQUIRED
+  if (
+    lookups.includes("invitation") || 
+    lookups.includes("approve") || 
+    lookups.includes("review") || 
+    lookups.includes("respond") || 
+    lookups.includes("verify") || 
+    lookups.includes("complete") || 
+    lookups.includes("action required") || 
+    lookups.includes("waiting for your response") ||
+    lookups.includes("invited you")
+  ) {
+    matchedBadges.push({ name: "action", style: "bg-[var(--tag-action-bg)] text-[var(--tag-action-text)]" });
+  }
+
+  // 3. JOB / INTERNSHIP
+  if (
+    lookups.includes("internship") || 
+    lookups.includes("job") || 
+    lookups.includes("career") || 
+    lookups.includes("hiring") || 
+    lookups.includes("recruiter") || 
+    lookups.includes("application") || 
+    lookups.includes("interview") ||
+    lookups.includes("sde intern")
+  ) {
+    matchedBadges.push({ name: "job", style: "bg-[var(--tag-job-bg)] text-[var(--tag-job-text)]" });
+  }
+
+  // 4. MEETING
+  if (
+    lookups.includes("meeting") || 
+    lookups.includes("calendar") || 
+    lookups.includes("schedule") || 
+    lookups.includes("zoom") || 
+    lookups.includes("google meet") || 
+    lookups.includes("appointment")
+  ) {
+    matchedBadges.push({ name: "meeting", style: "bg-[var(--tag-meeting-bg)] text-[var(--tag-meeting-text)]" });
+  }
+
+  // 5. FINANCE / BILLING
+  if (
+    lookups.includes("invoice") || 
+    lookups.includes("payment") || 
+    lookups.includes("billing") || 
+    lookups.includes("subscription") || 
+    lookups.includes("receipt") || 
+    lookups.includes("transaction") || 
+    lookups.includes("refund") ||
+    lookups.includes("token spend")
+  ) {
+    matchedBadges.push({ name: "finance", style: "bg-[var(--tag-finance-bg)] text-[var(--tag-finance-text)]" });
+  }
+
+  // 6. SECURITY
+  if (
+    lookups.includes("security") || 
+    lookups.includes("password") || 
+    lookups.includes("login") || 
+    lookups.includes("verification") || 
+    lookups.includes("2fa") || 
+    lookups.includes("otp") || 
+    lookups.includes("account access") || 
+    lookups.includes("privacy settings")
+  ) {
+    matchedBadges.push({ name: "security", style: "bg-[var(--tag-security-bg)] text-[var(--tag-security-text)]" });
+  }
+
+  // 7. DEPLOYMENT
+  if (
+    lookups.includes("deployment") || 
+    lookups.includes("production") || 
+    lookups.includes("build failed") || 
+    lookups.includes("vercel") || 
+    lookups.includes("railway") || 
+    lookups.includes("netlify") || 
+    lookups.includes("render") || 
+    lookups.includes("server") ||
+    lookups.includes("sandbox")
+  ) {
+    matchedBadges.push({ name: "deployment", style: "bg-[#fff0f3] text-[#ff3366] dark:bg-[#2c141a] dark:text-[#ff668f]" });
+  }
+
+  // 8. SOCIAL
+  if (
+    lookups.includes("linkedin") || 
+    lookups.includes("message") || 
+    lookups.includes("connection") || 
+    lookups.includes("social") ||
+    lookups.includes("category_social")
+  ) {
+    matchedBadges.push({ name: "social", style: "bg-[var(--tag-social-bg)] text-[var(--tag-social-text)]" });
+  }
+
+  // 9. NEWSLETTER
+  if (
+    lookups.includes("newsletter") || 
+    lookups.includes("digest") || 
+    lookups.includes("weekly") || 
+    lookups.includes("monthly") || 
+    lookups.includes("edition") || 
+    lookups.includes("update") ||
+    lookups.includes("category_updates")
+  ) {
+    matchedBadges.push({ name: "newsletter", style: "bg-[var(--tag-newsletter-bg)] text-[var(--tag-newsletter-text)]" });
+  }
+
+  // 10. PROMOTION
+  if (
+    lookups.includes("sale") || 
+    lookups.includes("discount") || 
+    lookups.includes("offer") || 
+    lookups.includes("deal") || 
+    lookups.includes("special") || 
+    lookups.includes("coupon") || 
+    lookups.includes("promotion") ||
+    lookups.includes("category_promotions") ||
+    lookups.includes("pinterest") ||
+    lookups.includes("canva")
+  ) {
+    matchedBadges.push({ name: "promotion", style: "bg-[var(--tag-promotion-bg)] text-[var(--tag-promotion-text)]" });
+  }
+
+  // 11. SUPPORT
+  if (
+    lookups.includes("ticket") || 
+    lookups.includes("issue") || 
+    lookups.includes("support") || 
+    lookups.includes("help") || 
+    lookups.includes("customer service") ||
+    lookups.includes("buffer")
+  ) {
+    matchedBadges.push({ name: "support", style: "bg-tag-support-bg text-tag-support-text" });
+  }
+
+  // 12. EDUCATION
+  if (
+    lookups.includes("course") || 
+    lookups.includes("learn") || 
+    lookups.includes("training") || 
+    lookups.includes("certificate") || 
+    lookups.includes("workshop") || 
+    lookups.includes("bootcamp") ||
+    lookups.includes("leetcode") ||
+    lookups.includes("tutorial") ||
+    lookups.includes("instructors")
+  ) {
+    matchedBadges.push({ name: "education", style: "bg-[var(--tag-education-bg)] text-[var(--tag-education-text)]" });
+  }
+
+  // 13. DESIGN
+  if (
+    lookups.includes("design") || 
+    lookups.includes("figma") || 
+    lookups.includes("ui") || 
+    lookups.includes("portfolio") ||
+    lookups.includes("web designs")
+  ) {
+    matchedBadges.push({ name: "design", style: "bg-tag-design-bg text-tag-design-text" });
+  }
+
+  // 14. PRODUCT
+  if (
+    lookups.includes("product") || 
+    lookups.includes("roadmap") ||
+    lookups.includes("feature") ||
+    lookups.includes("shipped")
+  ) {
+    matchedBadges.push({ name: "product", style: "bg-tag-product-bg text-tag-product-text" });
+  }
+
+  // 15. PERSONAL (Fallback match criteria)
+  if (
+    matchedBadges.length === 0 && (
+      lookups.includes("family") || 
+      lookups.includes("friend") || 
+      lookups.includes("personal") ||
+      lookups.includes("category_personal")
+    )
+  ) {
+    matchedBadges.push({ name: "personal", style: "bg-[var(--tag-personal-bg)] text-[var(--tag-personal-text)]" });
+  }
+
+  return matchedBadges;
+}
+
+// ─── EMAIL STREAM ROW (STRUCTURAL OVERRIDES LOCKED) ──────────────────────────
 function EmailRow({
   email,
   isSelected,
@@ -50,63 +242,129 @@ function EmailRow({
   isSelected: boolean;
   onClick: () => void;
 }) {
-  const fromName = email.fromAddr?.match(/^"?([^"<]+)"?\s*</)
-    ?.[1]
-    ?.trim() ?? email.fromAddr ?? "Unknown";
+  const fromName = email.fromAddr?.match(/^"?([^"<]+)"?\s*</)?.[1]?.trim() ?? email.fromAddr ?? "Unknown";
+  const badges = getInlineBadgeProps(email.subject ?? "", email.labels ?? []);
+  
+  // Enforce a strict single-tag display condition by pulling only the primary matched entry
+  const displayBadge = Array.isArray(badges) && badges.length > 0 ? badges[0] : null;
 
-  const time = email.receivedAt
-    ? formatDistanceToNow(new Date(email.receivedAt), { addSuffix: false })
+  const rowDate = email.receivedAt 
+    ? new Date(email.receivedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }).toUpperCase()
     : "";
 
   return (
     <button
       onClick={onClick}
-      className={`w-full flex items-center gap-3 px-4 py-3 border-b border-border/50 text-left
-        transition-colors duration-75 group
-        ${isSelected
-          ? "bg-surface-2"
-          : "hover:bg-surface-1"
-        }`}
+      className={`w-full flex items-center justify-between px-10 py-2.5 text-left
+        transition-colors duration-100 select-none relative outline-none
+        ${isSelected ? "bg-surface-2 text-text-primary" : "hover:bg-surface-1 text-text-secondary"}`}
     >
-      <PriorityDot priority={email.priority} />
-
-      {/* Unread indicator */}
-      <div
-        className={`w-1.5 h-1.5 rounded-full shrink-0 transition-opacity ${
-          email.isRead ? "opacity-0" : "bg-accent opacity-100"
-        }`}
-      />
-
-      <div className="flex-1 min-w-0">
-        <div className="flex items-center justify-between gap-2 mb-0.5">
-          <span
-            className={`text-sm truncate ${
-              email.isRead ? "text-text-secondary font-normal" : "text-text-primary font-semibold"
-            }`}
-          >
+      <div className="flex items-center gap-5 min-w-0 flex-1 pr-8">
+        {/* Sender Area */}
+        <div style={{fontSize:"14px"}} className={`w-40 shrink-0 truncate text-sm tracking-super-tight flex items-center ${!email.isRead ? "text-text-primary font-semibold" : "text-text-secondary font-medium"}`}>
+          <div className="w-1.5 h-1.5 flex items-center justify-center shrink-0 mr-2">
+            {!email.isRead && <div className="w-1.5 h-1.5 rounded-full bg-[#79BAD8]" />}
+          </div>
+          <div>
             {fromName}
-          </span>
-          <span className="text-xs text-text-tertiary shrink-0">{time}</span>
+          </div>
         </div>
-        <div className="flex items-center gap-2">
-          <span
-            className={`text-sm truncate ${
-              email.isRead ? "text-text-tertiary" : "text-text-secondary"
-            }`}
-          >
-            <span className={email.isRead ? "" : "text-text-primary"}>{email.subject ?? "(no subject)"}</span>
-            {email.snippet ? (
-              <span className="text-text-tertiary"> — {email.snippet}</span>
-            ) : null}
+
+        {/* Dynamic Label Badges + Text Context Layout */}
+        <div style={{ marginLeft: "76px" }} className="flex items-center gap-2 min-w-0 flex-1 text-sm truncate tracking-super-tight">
+          {/* Conditional single-badge display engine implementation */}
+          {displayBadge && (
+            <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold tracking-wider shrink-0 uppercase ${displayBadge.style}`}>
+              {displayBadge.name}
+            </span>
+          )}
+          
+          <span style={{ fontWeight: 500 }} className={!email.isRead ? "text-text-primary font-semibold" : "text-text-primary/90 font-medium "}>
+            {email.subject ?? "(no subject)"}
           </span>
+          {email.snippet && (
+            <span className="text-text-secondary/70 font-normal truncate ml-3 text-[13px]">{email.snippet}</span>
+          )}
         </div>
+      </div>
+
+      <div style={{fontSize:"13px"}} className="text-xxs tracking-super-wide text-text-tertiary font-medium shrink-0 text-right w-16 font-mono">
+        {rowDate}
       </div>
     </button>
   );
 }
 
-// ─── Email detail pane ────────────────────────────────────────────────────────
+// ─── RECENT OPENS SIDEBAR ────────────────────────────────────────────────────
+function RecentOpensSidebar({ 
+  hasSelectedEmail, 
+  onSelectRecent 
+}: { 
+  hasSelectedEmail: boolean; 
+  onSelectRecent: (id: string) => void;
+}) {
+  const items = [
+    { id: "19ec313135361f62", name: "Aman Raj", time: "34 mins ago", desc: "You have an invitation ✉️" },
+    { id: "19ec380fd7640730", name: "Devo jeet", time: "46 mins ago", desc: "You have an invitation" },
+    { id: "19eb72ca19b44781", name: "Vercel", time: "Tue 4:11 PM", desc: "Re: Introduction to 02/20 Dashlane Webinar", section: "Yesterday" },
+    { id: "19ebdbff53eefec5", name: "Railway", time: "Tue 4:09 PM", desc: "Appreciating The Product-Focused Direction!", section: "Yesterday" },
+    { id: "19ebfa42a7c88910", name: "Faizan Khan", time: "Tue 2:54 PM", desc: "Partnership & Sponsorship Media Kit", section: "Yesterday" },
+    { id: "19ebfa42a7c88910", name: "Faizan Khan", time: "Tue 2:48 PM", desc: "Follow-Up & Intro When Ready For Affiliate Conve...", section: "Yesterday" },
+    { id: "19ebc4a3232e0742", name: "virendaryadav36455-glitch", time: "Mon 5:36 PM", desc: "Re: Jason <> Alex", section: "Last 7 days" }
+  ];
 
+  return (
+    <div className={`w-[280px] h-full flex flex-col pt-6 select-none shrink-0 relative transition-colors duration-150 overflow-hidden
+      ${hasSelectedEmail 
+        ? "bg-surface-0 border-l border-neutral-200 dark:border-neutral-800/20" 
+        : "bg-surface-sidebar border-l border-neutral-200/60 dark:border-neutral-900/60"}`}>
+      
+      <div className="px-6 pb-4 shrink-0">
+        <h2 className="text-xs font-semibold text-text-primary tracking-tight">Recent Opens</h2>
+      </div>
+
+      <div className="flex-1 overflow-y-auto px-6 space-y-5 pb-4 custom-thin-scrollbar">
+        <div className="space-y-3.5">
+          {items.filter(i => !i.section).map((item, idx) => (
+            <div key={idx} onClick={() => onSelectRecent(item.id)} className="min-w-0 cursor-pointer block group">
+              <div className="flex items-baseline justify-between gap-2 mb-0.5">
+                <p className="text-xs font-medium text-text-primary/90 group-hover:text-accent transition-colors truncate">{item.name}</p>
+                <span className="text-[10px] text-text-tertiary/70 shrink-0 font-mono">{item.time}</span>
+              </div>
+              <p className="text-xs text-text-secondary truncate leading-normal">{item.desc}</p>
+            </div>
+          ))}
+        </div>
+
+        {["Yesterday", "Last 7 days"].map((section) => (
+          <div key={section} className="space-y-2.5 pt-1">
+            <h3 className="text-[10px] font-bold tracking-super-wide text-text-tertiary uppercase font-mono">{section}</h3>
+            <div className="space-y-3.5">
+              {items.filter(i => i.section === section).map((item, idx) => (
+                <div key={idx} onClick={() => onSelectRecent(item.id)} className="min-w-0 cursor-pointer block group">
+                  <div className="flex items-baseline justify-between gap-2 mb-0.5">
+                    <p className="text-xs font-medium text-text-primary/90 group-hover:text-accent transition-colors truncate">{item.name}</p>
+                    <span className="text-[10px] text-text-tertiary/70 shrink-0 font-mono">{item.time}</span>
+                  </div>
+                  <p className="text-xs text-text-secondary truncate leading-normal">{item.desc}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+        ))}
+      </div>
+      
+      <div className="px-6 py-3 border-t border-neutral-200 dark:border-neutral-800/40 flex items-center justify-between text-[10px] tracking-super-wide text-text-tertiary/80 uppercase font-mono shrink-0 bg-transparent">
+        <span>Superhuman</span>
+        <div className="flex gap-2.5 opacity-40">
+          <span>🎁</span><span>❓</span><span>📅</span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── CONTEXT READ VIEWPORT PANE ──────────────────────────────────────────────
 function EmailDetail({
   gmailId,
   onClose,
@@ -118,152 +376,89 @@ function EmailDetail({
   onReply: (email: Email) => void;
   onArchive: (gmailId: string) => void;
 }) {
-  console.log("Geting a specific email : ", gmailId);
   const { data: email, isLoading } = useQuery({
     queryKey: ["email", gmailId],
     queryFn: () => api.get<Email>(`/api/emails/${gmailId}`),
     staleTime: 5 * 60_000,
   });
 
-  // Sanitize HTML body for safe rendering
   const safeHtml = email?.body
     ? DOMPurify.sanitize(email.body, { ALLOWED_TAGS: ["p", "br", "b", "i", "a", "ul", "ol", "li", "div", "span", "strong", "em", "h1", "h2", "h3"] })
     : null;
 
-  if (isLoading) {
-    return (
-      <div className="flex-1 flex flex-col p-6 space-y-4">
-        <div className="h-5 w-2/3 skeleton rounded" />
-        <div className="h-4 w-1/3 skeleton rounded" />
-        <div className="space-y-2 mt-6">
-          {Array.from({ length: 6 }).map((_, i) => (
-            <div key={i} className={`h-3 skeleton rounded ${i % 3 === 2 ? "w-2/3" : "w-full"}`} />
-          ))}
-        </div>
-      </div>
-    );
+  if (isLoading || !email) {
+    return <div className="flex-1 flex items-center justify-center bg-surface-0"><div className="w-4 h-4 rounded-full border-2 border-accent border-t-transparent animate-spin" /></div>;
   }
 
-  if (!email) return null;
-
-  const fromName = email.fromAddr?.match(/^"?([^"<]+)"?\s*</)
-    ?.[1]
-    ?.trim() ?? email.fromAddr ?? "Unknown";
+  const fromName = email.fromAddr?.match(/^"?([^"<]+)"?\s*</)?.[1]?.trim() ?? email.fromAddr ?? "Unknown";
 
   return (
-    <div className="flex-1 flex flex-col overflow-hidden">
-      {/* Header */}
-      <div className="px-6 py-4 border-b border-border">
-        <div className="flex items-start justify-between gap-4">
-          <div className="min-w-0">
-            <h2 className="text-base font-semibold text-text-primary mb-1 leading-snug">
-              {email.subject ?? "(no subject)"}
-            </h2>
-            <p className="text-sm text-text-secondary">
-              <span className="font-medium">{fromName}</span>
-              {email.receivedAt && (
-                <span className="text-text-tertiary ml-2">
-                  {new Date(email.receivedAt).toLocaleString()}
-                </span>
-              )}
-            </p>
-            {email.toAddrs.length > 0 && (
-              <p className="text-xs text-text-tertiary mt-0.5">
-                To: {email.toAddrs.join(", ")}
-              </p>
-            )}
-          </div>
-
-          <button
-            onClick={onClose}
-            className="text-text-tertiary hover:text-text-secondary p-1 rounded transition-colors shrink-0"
-          >
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
-            </svg>
+    <div className="flex-1 flex flex-col overflow-hidden bg-surface-0 animate-fade-in absolute inset-0 md:relative z-20">
+      <div className="px-6 py-3.5 border-b border-neutral-200 dark:border-neutral-800/40 flex items-center justify-between bg-surface-0">
+        <button onClick={onClose} className="text-text-secondary hover:text-text-primary text-xs flex items-center gap-1.5 font-medium outline-none">
+          <span>←</span> Back
+        </button>
+        <div className="flex gap-3">
+          <button onClick={() => onReply(email)} className="px-3 py-1 text-xs font-semibold rounded bg-surface-2 hover:bg-surface-3 transition-colors outline-none">
+            Reply (R)
           </button>
-        </div>
-
-        {/* Actions */}
-        <div className="flex gap-2 mt-3">
-          {[
-            { label: "Reply (R)", onClick: () => onReply(email), icon: "↩" },
-            { label: "Archive (E)", onClick: () => { onArchive(email.gmailId); onClose(); }, icon: "↓" },
-          ].map((action) => (
-            <button
-              key={action.label}
-              onClick={action.onClick}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium
-                bg-surface-2 text-text-secondary hover:bg-surface-3 hover:text-text-primary
-                border border-border transition-colors"
-            >
-              <span>{action.icon}</span>
-              {action.label}
-            </button>
-          ))}
+          <button onClick={() => { onArchive(email.gmailId); onClose(); }} className="px-3 py-1 text-xs font-semibold rounded bg-danger/10 text-danger hover:bg-danger/20 transition-colors outline-none">
+            Archive (E)
+          </button>
         </div>
       </div>
 
-      {/* Body */}
-      <div className="flex-1 overflow-y-auto px-6 py-5">
-        {safeHtml ? (
-          <div
-            className="prose prose-invert prose-sm max-w-none text-text-secondary leading-relaxed"
-            dangerouslySetInnerHTML={{ __html: safeHtml }}
-          />
-        ) : (
-          <pre className="text-sm text-text-secondary whitespace-pre-wrap font-sans leading-relaxed">
-            {email.body ?? "(no content)"}
-          </pre>
-        )}
+      <div className="flex-1 overflow-y-auto p-8 space-y-6 custom-thin-scrollbar">
+        <div>
+          <h2 className="text-base font-semibold text-text-primary tracking-tight">{email.subject ?? "(no subject)"}</h2>
+          <p className="text-xs text-text-secondary mt-1">
+            From: <span className="font-semibold text-text-primary">{fromName}</span> <span className="font-mono text-text-tertiary">({email.fromAddr})</span>
+          </p>
+        </div>
+        <div className="text-sm text-text-primary leading-relaxed font-normal pt-6 border-t border-neutral-200 dark:border-neutral-800/40 max-w-2xl">
+          {safeHtml ? (
+            <div className="prose prose-sm max-w-none dark:prose-invert" dangerouslySetInnerHTML={{ __html: safeHtml }} />
+          ) : (
+            <pre className="whitespace-pre-wrap font-sans text-text-primary/90">{email.body ?? "(no content)"}</pre>
+          )}
+        </div>
       </div>
     </div>
   );
 }
 
-// ─── Main inbox page ──────────────────────────────────────────────────────────
-
+// ─── MASTER INTEGRATED CANVAS CONTROLLER ─────────────────────────────────────
 export default function InboxPage() {
+  const [activeTab, setActiveTab] = useState<TabType>("inbox");
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [selectedIndex, setSelectedIndex] = useState(0);
   const [composeOpen, setComposeOpen] = useState(false);
   const [replyTo, setReplyTo] = useState<Email | null>(null);
   const [searchOpen, setSearchOpen] = useState(false);
-  const [priorityFilter, setPriorityFilter] = useState<"all" | "high" | "normal" | "low">("all");
+
   const queryClient = useQueryClient();
 
   useEffect(() => {
-  const es = new EventSource("/api/events/stream");
+    const es = new EventSource("/api/events/stream");
+    const refresh = () => { queryClient.invalidateQueries({ queryKey: ["emails"] }); };
+    es.addEventListener("email_enriched", refresh);
+    es.addEventListener("new_email", refresh);
+    return () => {
+      es.removeEventListener("email_enriched", refresh);
+      es.removeEventListener("new_email", refresh);
+      es.close();
+    };
+  }, [queryClient]);
 
-  const refresh = () => {
-    queryClient.invalidateQueries({
-      queryKey: ["emails"],
-    });
-  };
-
-  es.addEventListener("email_enriched", refresh);
-  es.addEventListener("new_email", refresh);
-
-  return () => {
-    es.removeEventListener("email_enriched", refresh);
-    es.removeEventListener("new_email", refresh);
-    es.close();
-  };
-}, [queryClient]);
-
-  const { data, isLoading, isError, refetch } = useQuery({
-    queryKey: ["emails", priorityFilter],
-    queryFn: () =>
-      api.get<PaginatedResponse<EmailListItem>>(
-        `/api/emails${priorityFilter !== "all" ? `?priority=${priorityFilter}` : ""}`,
-      ),
+  const { data, isLoading, isError, refetch } = useQuery<PaginatedResponse<EmailListItem>>({
+    queryKey: ["emails"],
+    queryFn: () => api.get<PaginatedResponse<EmailListItem>>(`/api/emails`),
   });
 
   const archiveMutation = useMutation({
     mutationFn: (gmailId: string) => api.post(`/api/emails/${gmailId}/archive`, {}),
     onMutate: async (gmailId) => {
-      // Optimistic update — remove from list immediately
-      const key = ["emails", priorityFilter];
+      const key = ["emails"];
       await queryClient.cancelQueries({ queryKey: key });
       const prev = queryClient.getQueryData<PaginatedResponse<EmailListItem>>(key);
       if (prev) {
@@ -275,13 +470,12 @@ export default function InboxPage() {
       return { prev };
     },
     onError: (_err, _id, ctx) => {
-      if (ctx?.prev) queryClient.setQueryData(["emails", priorityFilter], ctx.prev);
+      if (ctx?.prev) queryClient.setQueryData(["emails"], ctx.prev);
     },
   });
 
   const emails = data?.items ?? [];
 
-  // Listen for global compose event
   useEffect(() => {
     const open = () => setComposeOpen(true);
     const openSearch = () => setSearchOpen(true);
@@ -293,57 +487,116 @@ export default function InboxPage() {
     };
   }, []);
 
-  // Keyboard nav within inbox
-  const handleKeyDown = useCallback(
-    (e: KeyboardEvent) => {
-      const tag = (e.target as HTMLElement)?.tagName;
-      if (tag === "INPUT" || tag === "TEXTAREA") return;
+  const filteredEmails = useMemo(() => {
+    return emails.filter((email) => {
+      const labels = email.labels ?? [];
+      const subject = (email.subject ?? "").toLowerCase();
 
-      if (e.key === "j" || e.key === "ArrowDown") {
-        e.preventDefault();
-        const next = Math.min(selectedIndex + 1, emails.length - 1);
+      switch (activeTab) {
+        case "inbox":
+          return labels.includes("INBOX");
+        case "secondary":
+          return labels.includes("CATEGORY_PROMOTIONS") || email.priority === "low";
+        case "important":
+          return labels.includes("IMPORTANT") || labels.includes("CATEGORY_PERSONAL") || email.priority === "high";
+        case "standard_feed":
+          return email.priority === "normal" && !labels.includes("CATEGORY_UPDATES") && !labels.includes("CATEGORY_PROMOTIONS");
+        case "notification":
+          return labels.includes("CATEGORY_UPDATES");
+        case "support":
+          return subject.includes("support") || subject.includes("issue");
+        case "others":
+          return labels.includes("CATEGORY_SOCIAL");
+        default:
+          return true;
+      }
+    });
+  }, [emails, activeTab]);
+
+  const groupedEmails = useMemo(() => {
+    const groups: Record<string, EmailListItem[]> = {};
+    const sortedEmails = [...filteredEmails].sort((a, b) => {
+      if (!a.receivedAt) return 1;
+      if (!b.receivedAt) return -1;
+      return new Date(b.receivedAt).getTime() - new Date(a.receivedAt).getTime();
+    });
+
+    sortedEmails.forEach((email) => {
+      if (!email.gmailId) return;
+      const groupName = getTimelineGroup(email.receivedAt);
+      if (!groups[groupName]) groups[groupName] = [];
+      groups[groupName].push(email);
+    });
+    return groups;
+  }, [filteredEmails]);
+
+  const chronologicalKeys = useMemo(() => {
+    const keys = Object.keys(groupedEmails);
+    return TIMELINE_ORDER.filter(k => keys.includes(k)).concat(
+      keys.filter(k => !TIMELINE_ORDER.includes(k))
+    );
+  }, [groupedEmails]);
+
+  const tabCounts = useMemo(() => {
+    return {
+      inbox: emails.filter(e => !e.isRead && e.labels?.includes("INBOX")).length || null,
+      important: emails.filter(e => !e.isRead && (e.labels?.includes("IMPORTANT") || e.labels?.includes("CATEGORY_PERSONAL") || e.priority === "high")).length || null,
+      standard_feed: emails.filter(e => !e.isRead && e.priority === "normal" && !e.labels?.includes("CATEGORY_UPDATES") && !e.labels?.includes("CATEGORY_PROMOTIONS")).length || null,
+      notification: emails.filter(e => !e.isRead && e.labels?.includes("CATEGORY_UPDATES")).length || null,
+      support: emails.filter(e => !e.isRead && ((e.subject ?? "").toLowerCase().includes("support") || (e.subject ?? "").toLowerCase().includes("issue"))).length || null,
+      secondary: emails.filter(e => !e.isRead && (e.labels?.includes("CATEGORY_PROMOTIONS") || e.priority === "low")).length || null,
+      others: emails.filter(e => !e.isRead && e.labels?.includes("CATEGORY_SOCIAL")).length || null,
+    };
+  }, [emails]);
+
+  const handleKeyDown = useCallback((e: KeyboardEvent) => {
+    const tag = (e.target as HTMLElement)?.tagName;
+    if (tag === "INPUT" || tag === "TEXTAREA") return;
+
+    if (e.key === "j" || e.key === "ArrowDown") {
+      e.preventDefault();
+      const next = Math.min(selectedIndex + 1, filteredEmails.length - 1);
+      if (filteredEmails[next]) {
         setSelectedIndex(next);
-        setSelectedId(emails[next]?.gmailId ?? null);
+        setSelectedId(filteredEmails[next].gmailId ?? null);
       }
-      if (e.key === "k" || e.key === "ArrowUp") {
-        e.preventDefault();
-        const prev = Math.max(selectedIndex - 1, 0);
+    }
+    if (e.key === "k" || e.key === "ArrowUp") {
+      e.preventDefault();
+      const prev = Math.max(selectedIndex - 1, 0);
+      if (filteredEmails[prev]) {
         setSelectedIndex(prev);
-        setSelectedId(emails[prev]?.gmailId ?? null);
+        setSelectedId(filteredEmails[prev].gmailId ?? null);
       }
-      if ((e.key === "o" || e.key === "Enter") && selectedId) {
-        // Already selected — stays open
+    }
+    if (e.key === "e" && selectedId) {
+      archiveMutation.mutate(selectedId);
+      setSelectedId(null);
+    }
+    if (e.key === "r" && selectedId) {
+      const activeEmail = filteredEmails.find((em) => em.gmailId === selectedId);
+      if (activeEmail) {
+        setReplyTo({
+          id: activeEmail.id,
+          userId: "",
+          gmailId: activeEmail.gmailId,
+          threadId: activeEmail.threadId,
+          fromAddr: activeEmail.fromAddr,
+          toAddrs: [],
+          ccAddrs: [],
+          subject: activeEmail.subject,
+          snippet: activeEmail.snippet,
+          body: null,
+          isRead: activeEmail.isRead,
+          labels: activeEmail.labels,
+          priority: activeEmail.priority,
+          attachments: [],
+          receivedAt: activeEmail.receivedAt,
+        });
+        setComposeOpen(true);
       }
-      if (e.key === "e" && selectedId) {
-        archiveMutation.mutate(selectedId);
-        setSelectedId(null);
-      }
-      if (e.key === "r" && selectedId) {
-        const email = emails.find((em) => em.gmailId === selectedId);
-        if (email) {
-          setReplyTo({
-            id: email.id,
-            userId: "",
-            gmailId: email.gmailId,
-            threadId: email.threadId,
-            fromAddr: email.fromAddr,
-            toAddrs: [],
-            ccAddrs: [],
-            subject: email.subject,
-            snippet: email.snippet,
-            body: null,
-            isRead: email.isRead,
-            labels: email.labels,
-            priority: email.priority,
-            attachments: [],
-            receivedAt: email.receivedAt,
-          });
-          setComposeOpen(true);
-        }
-      }
-    },
-    [emails, selectedId, selectedIndex, archiveMutation],
-  );
+    }
+  }, [filteredEmails, selectedId, selectedIndex, archiveMutation]);
 
   useEffect(() => {
     window.addEventListener("keydown", handleKeyDown);
@@ -351,168 +604,126 @@ export default function InboxPage() {
   }, [handleKeyDown]);
 
   return (
-    <div className="flex h-full">
-      {/* Email list */}
-      <div
-        className={`flex flex-col border-r border-border overflow-hidden transition-all ${
-          selectedId ? "w-80 shrink-0" : "flex-1"
-        }`}
-      >
-        {/* Toolbar */}
-        <div className="flex items-center justify-between px-4 py-3 border-b border-border">
-          <h1 className="text-sm font-semibold text-text-primary">Inbox</h1>
-          <div className="flex items-center gap-2">
-            <button
-              onClick={() => setSearchOpen(true)}
-              className="p-1.5 rounded-lg text-text-tertiary hover:text-text-secondary hover:bg-surface-2 transition-colors"
-              title="Search (/ or ⌘K)"
-            >
-              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <circle cx="11" cy="11" r="8" /><path d="m21 21-4.35-4.35" strokeLinecap="round" />
-              </svg>
-            </button>
-            <button
-              onClick={() => setComposeOpen(true)}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium
-                bg-accent text-white hover:bg-accent-hover transition-colors"
-              title="Compose (C)"
-            >
-              Compose
-            </button>
+    <div className="w-full h-full bg-surface-0 flex box-border relative transition-colors duration-150">
+      
+      {/* Central Thread Container Module */}
+      <div className={`flex-1 flex flex-col min-w-0 overflow-hidden h-full transition-all duration-300
+        ${selectedId ? "hidden md:flex md:max-w-[420px] lg:max-w-[460px] border-r border-neutral-200 dark:border-neutral-800/20" : ""}`}>
+        
+        {/* Flat Top Bar Folder Filters */}
+        <div className="flex items-center justify-between px-10 pt-3 pb-2 bg-surface-0 select-none border-b border-neutral-200 dark:border-neutral-800/40">
+          <div className="flex items-center gap-6 overflow-x-auto scrollbar-none max-w-full pr-4">
+            {([
+              { id: "inbox", label: "Inbox", count: tabCounts.inbox },
+              { id: "important", label: "Important", count: tabCounts.important },
+              { id: "secondary", label: "Secondary", count: tabCounts.secondary },
+              { id: "standard_feed", label: "Standard Feed", count: tabCounts.standard_feed },
+              { id: "notification", label: "Notification", count: tabCounts.notification },
+              { id: "support", label: "Support", count: tabCounts.support },
+              { id: "others", label: "Others", count: tabCounts.others }
+            ] as const).map((tab) => (
+              <button
+                key={tab.id}
+                onClick={() => {
+                  setActiveTab(tab.id);
+                  setSelectedId(null);
+                  setSelectedIndex(0);
+                }}
+                className={`text-sm font-semibold transition-all relative pb-2 outline-none shrink-0
+                  ${activeTab === tab.id ? "text-text-primary" : "text-text-secondary/50 hover:text-text-secondary"}`}
+              >
+                <span className="inline-flex items-baseline gap-1">
+                  {tab.label}
+                  {tab.count !== null && (
+                    <span className="text-xxs font-normal opacity-60 font-mono">{tab.count}</span>
+                  )}
+                </span>
+                {activeTab === tab.id && (
+                  <div className="absolute bottom-0 left-0 right-0 h-[2px] bg-accent rounded-full animate-fade-in" />
+                )}
+              </button>
+            ))}
+          </div>
+
+          <div className="flex items-center gap-4 text-text-tertiary/80 shrink-0">
+            <button onClick={() => setComposeOpen(true)} className="hover:text-text-secondary p-1 outline-none"><span className="text-sm"><Pencil size={18}/></span></button>
+            <button onClick={() => setSearchOpen(true)} className="hover:text-text-secondary p-1 outline-none"><span className="text-sm"><Search size={18}/></span></button>
           </div>
         </div>
 
-        {/* Priority filter tabs — backed by LLM-classified email priority */}
-        <div className="flex items-center gap-1 px-4 py-2 border-b border-border/50">
-          {([
-            { key: "all", label: "All" },
-            { key: "high", label: "High priority" },
-            { key: "normal", label: "Normal" },
-            { key: "low", label: "Low" },
-          ] as const).map((tab) => (
-            <button
-              key={tab.key}
-              onClick={() => {
-                setPriorityFilter(tab.key);
-                setSelectedId(null);
-                setSelectedIndex(0);
-              }}
-              className={`px-2.5 py-1 rounded-lg text-xs font-medium transition-colors flex items-center gap-1.5 ${
-                priorityFilter === tab.key
-                  ? "bg-surface-2 text-text-primary"
-                  : "text-text-tertiary hover:text-text-secondary hover:bg-surface-1"
-              }`}
-            >
-              {tab.key === "high" && (
-                <span className="w-1.5 h-1.5 rounded-full bg-danger shrink-0" />
-              )}
-              {tab.key === "low" && (
-                <span className="w-1.5 h-1.5 rounded-full bg-text-tertiary shrink-0" />
-              )}
-              {tab.label}
-            </button>
-          ))}
-        </div>
-
-        {/* List */}
-        <div className="flex-1 overflow-y-auto">
+        {/* Linear Unified Chronological Feed List Block */}
+        <div className="flex-1 overflow-y-auto custom-thin-scrollbar">
           {isLoading && (
-            <div>
-              {Array.from({ length: 8 }).map((_, i) => <EmailRowSkeleton key={i} />)}
-            </div>
+            <div className="p-10 space-y-4 animate-pulse" />
           )}
 
           {isError && (
-            <div className="flex flex-col items-center justify-center h-48 px-6 text-center">
-              <p className="text-sm text-text-secondary mb-3">Couldn't load emails</p>
-              <button
-                onClick={() => refetch()}
-                className="text-xs text-accent hover:underline"
-              >
-                Retry →
-              </button>
+            <div className="flex flex-col items-center justify-center h-48 px-10 text-center">
+              <p className="text-sm text-text-secondary mb-3">Couldn't load email index streams.</p>
+              <button onClick={() => refetch()} className="text-xs text-accent hover:underline">Retry →</button>
             </div>
           )}
 
-          {!isLoading && !isError && emails.length === 0 && (
-            <div className="flex flex-col items-center justify-center h-48 px-6 text-center">
-              <div className="w-10 h-10 rounded-xl bg-surface-2 flex items-center justify-center mb-3">
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="text-text-tertiary">
-                  <path d="M3 8l7.89 4.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" strokeLinecap="round" strokeLinejoin="round" />
-                </svg>
+          {!isLoading && !isError && chronologicalKeys.length === 0 && (
+            <div className="flex flex-col items-center justify-center h-64 text-center px-10">
+              <p className="text-sm text-text-secondary font-medium">Clear feed inside this view panel.</p>
+            </div>
+          )}
+
+          {!isLoading && !isError && chronologicalKeys.map((groupTitle) => {
+            const items = groupedEmails[groupTitle] || [];
+            if (items.length === 0) return null;
+
+            return (
+              <div key={groupTitle} className="mb-2">
+                <div className="px-10 py-1.5 bg-surface-0 sticky top-0 z-10">
+                  <h2 className="text-xxs font-bold tracking-super-wide text-text-tertiary uppercase font-mono pt-1 ml-3">
+                    {groupTitle}
+                  </h2>
+                </div>
+                
+                <div className="mt-0.5">
+                  {items.map((email, idx) => (
+                    <EmailRow
+                      key={email.gmailId}
+                      email={email}
+                      isSelected={email.gmailId === selectedId}
+                      onClick={() => {
+                        setSelectedId(email.gmailId);
+                        setSelectedIndex(idx);
+                      }}
+                    />
+                  ))}
+                </div>
               </div>
-              {priorityFilter !== "all" ? (
-                <>
-                  <p className="text-sm text-text-secondary">
-                    No {priorityFilter} priority emails right now
-                  </p>
-                  <button
-                    onClick={() => setPriorityFilter("all")}
-                    className="mt-3 text-xs text-accent hover:underline"
-                  >
-                    Show all emails →
-                  </button>
-                </>
-              ) : (
-                <>
-                  <p className="text-sm text-text-secondary">Your inbox is empty</p>
-                  <button
-                    onClick={() => setComposeOpen(true)}
-                    className="mt-3 text-xs text-accent hover:underline"
-                  >
-                    Compose your first email →
-                  </button>
-                </>
-              )}
-            </div>
-          )}
-
-          {emails.map((email, index) => (
-            <EmailRow
-              key={email.gmailId}
-              email={email}
-              isSelected={email.gmailId === selectedId}
-              onClick={() => {
-                setSelectedId(email.gmailId);
-                setSelectedIndex(index);
-              }}
-            />
-          ))}
+            );
+          })}
         </div>
       </div>
 
-      {/* Email detail pane */}
+      {/* Embedded Conversation Reader Viewport Component */}
       {selectedId && (
         <EmailDetail
           gmailId={selectedId}
           onClose={() => setSelectedId(null)}
-          onReply={(email) => {
-            setReplyTo(email);
-            setComposeOpen(true);
-          }}
+          onReply={(email) => { setReplyTo(email); setComposeOpen(true); }}
           onArchive={(id) => archiveMutation.mutate(id)}
         />
       )}
 
-      {/* Compose modal */}
+      {/* Unified Connected Recent Opens Sidebar panel widget */}
+      <RecentOpensSidebar 
+        hasSelectedEmail={!!selectedId} 
+        onSelectRecent={(id) => setSelectedId(id)} 
+      />
+
+      {/* Global Compose Overlay Modal Portal Component */}
       {composeOpen && (
         <ComposeModal
           replyTo={replyTo}
-          onClose={() => {
-            setComposeOpen(false);
-            setReplyTo(null);
-          }}
-          onSent={() => {
-            setComposeOpen(false);
-            setReplyTo(null);
-            queryClient.invalidateQueries({ queryKey: ["emails"] });
-          }}
+          onClose={() => { setComposeOpen(false); setReplyTo(null); }}
+          onSent={() => { setComposeOpen(false); setReplyTo(null); queryClient.invalidateQueries({ queryKey: ["emails"] }); }}
         />
-      )}
-
-      {/* Search command palette */}
-      {searchOpen && (
-        <SearchCommand onClose={() => setSearchOpen(false)} />
       )}
     </div>
   );
