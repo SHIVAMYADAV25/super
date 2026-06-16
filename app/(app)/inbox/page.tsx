@@ -1078,9 +1078,9 @@ export default function InboxPage() {
         </div>
       )}
 
-      <div className={selectedId ? "hidden" : "block"}>
+      {/* <div className={selectedId ? "hidden" : "block"}>
         <RecentOpensSidebar hasSelectedEmail={!!selectedId} onSelectRecent={(id) => setSelectedId(id)} />
-      </div>
+      </div> */}
 
       {composeOpen && (
         <ComposeModal replyTo={replyTo}

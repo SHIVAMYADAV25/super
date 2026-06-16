@@ -9,10 +9,8 @@
     --foreground: #111112;
     
     --surface-0: #fdf8f8;
-    /* --surface-1: #f3f4f6;        */
     --surface-1: #ecedee;  
     --surface-2: #e5e7eb;        /* Light Mode Selected: Visible gray step */
-    /* --surface-sidebar: #f8f9fa; */
     --surface-sidebar: #fff7f7;
     
     --border: #e5e7eb;
@@ -34,33 +32,32 @@
     --tag-marketing-bg: #ede9fe;
     --tag-marketing-text: #5b21b6;
 
-    /* Add inside :root (Light Mode Badge Defaults) */
-  --tag-urgent-bg: #fee2e2;
-  --tag-urgent-text: #dc2626;
-  --tag-action-bg: #e0f2fe;
-  --tag-action-text: #0369a1;
-  --tag-job-bg: #f3e8ff;
-  --tag-job-text: #6b21a8;
-  --tag-meeting-bg: #e0e7ff;
-  --tag-meeting-text: #4338ca;
-  --tag-finance-bg: #dcfce7;
-  --tag-finance-text: #15803d;
-  --tag-security-bg: #fef3c7;
-  --tag-security-text: #b45309;
-  --tag-social-bg: #e0f2fe;
-  --tag-social-text: #0284c7;
-  --tag-newsletter-bg: #f1f5f9;
-  --tag-newsletter-text: #475569;
-  --tag-promotion-bg: #fae8ff;
-  --tag-promotion-text: #a21caf;
-  --tag-education-bg: #fff7ed;
-  --tag-education-text: #c2410c;
-  --tag-personal-bg: #f0fdf4;
-  --tag-personal-text: #16a34a;
+    --tag-urgent-bg: #fee2e2;
+    --tag-urgent-text: #dc2626;
+    --tag-action-bg: #e0f2fe;
+    --tag-action-text: #0369a1;
+    --tag-job-bg: #f3e8ff;
+    --tag-job-text: #6b21a8;
+    --tag-meeting-bg: #e0e7ff;
+    --tag-meeting-text: #4338ca;
+    --tag-finance-bg: #dcfce7;
+    --tag-finance-text: #15803d;
+    --tag-security-bg: #fef3c7;
+    --tag-security-text: #b45309;
+    --tag-social-bg: #e0f2fe;
+    --tag-social-text: #0284c7;
+    --tag-newsletter-bg: #f1f5f9;
+    --tag-newsletter-text: #475569;
+    --tag-promotion-bg: #fae8ff;
+    --tag-promotion-text: #a21caf;
+    --tag-education-bg: #fff7ed;
+    --tag-education-text: #c2410c;
+    --tag-personal-bg: #f0fdf4;
+    --tag-personal-text: #16a34a;
   }
 
   .dark {
-    /* Exact Slate-Midnight Color values from reference image_1b320b.jpg */
+    /* Exact Slate-Midnight Color values */
     --background: #525252;       /* Deep matte backdrop behind panels */
     --foreground: #f3f4f6;
     
@@ -69,7 +66,7 @@
     --surface-2: #27292f;       /* Dark Mode Selected: Active row highlight (#27292f) */
     --surface-sidebar: #1a1a1a; /* Recent Opens dark backdrop container background */
     
-    --border: #1f1f24;          /* Soft, low-contrast inner lines (no harsh white/gray borders) */
+    --border: #1f1f24;          /* Soft, low-contrast inner lines */
     
     --text-primary: #f3f4f6;    /* Soft high-contrast text color */
     --text-secondary: #9ca3af;  /* Balanced gray contrast snippet text labels */
@@ -78,42 +75,41 @@
     --accent: #eb2560;
     --accent-hover: #e75b85;
 
-    /* High-Fidelity Desaturated Custom Hex Badges matching the reference images */
-    --tag-product-bg: rgba(244, 176, 214, 0.12);  /* Pastel Pink #f4b0d6 background wrapper */
+    /* High-Fidelity Desaturated Custom Hex Badges */
+    --tag-product-bg: rgba(244, 176, 214, 0.12);
     --tag-product-text: #f4b0d6;
     
-    --tag-design-bg: rgba(248, 177, 168, 0.12);   /* Pastel Orange #f8b1a8 background wrapper */
+    --tag-design-bg: rgba(248, 177, 168, 0.12);
     --tag-design-text: #f8b1a8;
     
-    --tag-support-bg: rgba(121, 186, 216, 0.12);  /* Pastel Blue #79BAD8 background wrapper */
+    --tag-support-bg: rgba(121, 186, 216, 0.12);
     --tag-support-text: #79BAD8;
     
-    --tag-marketing-bg: rgba(190, 184, 241, 0.12); /* Pastel Purple #beb8f1 background wrapper */
+    --tag-marketing-bg: rgba(190, 184, 241, 0.12);
     --tag-marketing-text: #beb8f1;
 
-    /* Add inside .dark (High-Fidelity Desaturated Custom Hex Badges) */
-  --tag-urgent-bg: rgba(239, 68, 68, 0.12);
-  --tag-urgent-text: #f87171;
-  --tag-action-bg: rgba(56, 189, 248, 0.12);
-  --tag-action-text: #7dd3fc;
-  --tag-job-bg: rgba(192, 132, 252, 0.12);
-  --tag-job-text: #c084fc;
-  --tag-meeting-bg: rgba(129, 140, 248, 0.12);
-  --tag-meeting-text: #818cf8;
-  --tag-finance-bg: rgba(74, 222, 128, 0.12);
-  --tag-finance-text: #4ade80;
-  --tag-security-bg: rgba(251, 191, 36, 0.12);
-  --tag-security-text: #fbbf24;
-  --tag-social-bg: rgba(14, 165, 233, 0.12);
-  --tag-social-text: #38bdf8;
-  --tag-newsletter-bg: rgba(148, 163, 184, 0.12);
-  --tag-newsletter-text: #cbd5e1;
-  --tag-promotion-bg: rgba(232, 121, 249, 0.12);
-  --tag-promotion-text: #f472b6;
-  --tag-education-bg: rgba(251, 146, 60, 0.12);
-  --tag-education-text: #fb923c;
-  --tag-personal-bg: rgba(34, 197, 94, 0.12);
-  --tag-personal-text: #4ade80;
+    --tag-urgent-bg: rgba(239, 68, 68, 0.12);
+    --tag-urgent-text: #f87171;
+    --tag-action-bg: rgba(56, 189, 248, 0.12);
+    --tag-action-text: #7dd3fc;
+    --tag-job-bg: rgba(192, 132, 252, 0.12);
+    --tag-job-text: #c084fc;
+    --tag-meeting-bg: rgba(129, 140, 248, 0.12);
+    --tag-meeting-text: #818cf8;
+    --tag-finance-bg: rgba(74, 222, 128, 0.12);
+    --tag-finance-text: #4ade80;
+    --tag-security-bg: rgba(251, 191, 36, 0.12);
+    --tag-security-text: #fbbf24;
+    --tag-social-bg: rgba(14, 165, 233, 0.12);
+    --tag-social-text: #38bdf8;
+    --tag-newsletter-bg: rgba(148, 163, 184, 0.12);
+    --tag-newsletter-text: #cbd5e1;
+    --tag-promotion-bg: rgba(232, 121, 249, 0.12);
+    --tag-promotion-text: #f472b6;
+    --tag-education-bg: rgba(251, 146, 60, 0.12);
+    --tag-education-text: #fb923c;
+    --tag-personal-bg: rgba(34, 197, 94, 0.12);
+    --tag-personal-text: #4ade80;
   }
 
   * {
@@ -135,7 +131,23 @@
 }
 
 @layer utilities {
-  /* Minimalist custom thin scroll track layout mimicking Superhuman app mechanics */
+  /* --- VIEW TRANSITIONS ENGINE OVERRIDES --- */
+  /* Turning off default cross-fade animations on screen snapshots */
+::view-transition-old(root),
+  ::view-transition-new(root) {
+    animation: none;
+    mix-blend-mode: normal;
+  }
+
+  /* Structural z-index pinning to force exact layer masking layers */
+  .dark::view-transition-old(root) { z-index: 1; }
+  .dark::view-transition-new(root) { z-index: 999; }
+  
+  ::view-transition-old(root) { z-index: 999; }
+  ::view-transition-new(root) { z-index: 1; }
+  /* ----------------------------------------- */
+
+  /* Minimalist custom thin scroll track layout */
   .custom-thin-scrollbar::-webkit-scrollbar {
     width: 4px;
     height: 4px;

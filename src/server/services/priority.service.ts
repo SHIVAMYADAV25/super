@@ -471,10 +471,10 @@ export async function enrichEmail(job: EmailEnrichmentJob): Promise<void> {
 
     logger.info("enrichEmail: complete", { gmailId, priority });
 
-    // emitToUser(getTenantId(googleSub), {
-    //   type: "email_enriched",
-    //   data: { gmailId, priority },
-    // });
+    emitToUser(getTenantId(googleSub), {
+      type: "email_enriched",
+      data: { gmailId, priority },
+    });
   } catch (err) {
     logger.error("enrichEmail failed", {
       userId,

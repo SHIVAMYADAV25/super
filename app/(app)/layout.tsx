@@ -1,13 +1,12 @@
+// app/(app)/layout.tsx
 "use client";
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useCallback, useState } from "react";
 import { signOut, useSession } from "next-auth/react";
+import { useTheme } from "next-themes";
 import { Send } from "lucide-react";
-
-// NOTE: SSE connection now lives exclusively in InboxPage.
-// Layout only handles: navigation, theme toggle, keyboard shortcuts for routing.
 
 interface NavItem {
   href: string;
@@ -56,31 +55,64 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
   const { data: session } = useSession();
-
+  const { theme, setTheme, resolvedTheme } = useTheme();
+  
+  const [mounted, setMounted] = useState(false);
   const [gPressed, setGPressed] = useState(false);
   const [showShortcuts, setShowShortcuts] = useState(false);
-  const [isDarkMode, setIsDarkMode] = useState(false);
 
+  // Prevent UI component hydration mismatch
   useEffect(() => {
-    const root = window.document.documentElement;
-    if (root.classList.contains("dark")) {
-      setIsDarkMode(true);
-    } else if (window.matchMedia("(prefers-color-scheme: dark)").matches) {
-      root.classList.add("dark");
-      setIsDarkMode(true);
-    }
+    setMounted(true);
   }, []);
 
-  const toggleTheme = () => {
-    const root = window.document.documentElement;
-    if (isDarkMode) {
-      root.classList.remove("dark");
-      setIsDarkMode(false);
-    } else {
-      root.classList.add("dark");
-      setIsDarkMode(true);
-    }
-  };
+  const isDarkMode = resolvedTheme === "dark";
+
+const toggleTheme = (event: React.MouseEvent<HTMLButtonElement>) => {
+  // 1. Capture the exact state BEFORE the theme switches
+  const wasDarkMode = resolvedTheme === "dark";
+  const nextTheme = wasDarkMode ? "light" : "dark";
+
+  // Graceful fallback for legacy browsers without View Transition API support
+  if (!document.startViewTransition) {
+    setTheme(nextTheme);
+    return;
+  }
+
+  // Target coordinates of your navigation toggle button click
+  const x = event.clientX;
+  const y = event.clientY;
+  const endRadius = Math.hypot(
+    Math.max(x, window.innerWidth - x),
+    Math.max(y, window.innerHeight - y)
+  );
+
+  const transition = document.startViewTransition(() => {
+    setTheme(nextTheme);
+  });
+
+  transition.ready.then(() => {
+    const clipPath = [
+      `circle(0px at ${x}px ${y}px)`,
+      `circle(${endRadius}px at ${x}px ${y}px)`,
+    ];
+    
+    document.documentElement.animate(
+      {
+        // 2. Use the stable 'wasDarkMode' variable instead of the reactive 'resolvedTheme'
+        clipPath: wasDarkMode ? [...clipPath].reverse() : clipPath,
+      },
+      {
+        duration: 450,
+        easing: "cubic-bezier(0.4, 0, 0.2, 1)",
+        // 3. Pin the pseudo-element to match the starting state safely
+        pseudoElement: wasDarkMode
+          ? "::view-transition-old(root)"
+          : "::view-transition-new(root)",
+      }
+    );
+  });
+};
 
   const handleKeyDown = useCallback((e: KeyboardEvent) => {
     const tag = (e.target as HTMLElement)?.tagName;
@@ -115,13 +147,13 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   }, [handleKeyDown]);
 
   return (
-    <div className="w-screen h-screen p-3 sm:p-4 bg-background overflow-hidden flex box-border select-none transition-colors duration-150">
+    <div className="w-screen h-screen p-3 sm:p-4 bg-background overflow-hidden flex box-border select-none">
       <div className="flex-1 h-full bg-surface-0 superhuman-shell-shadow rounded-xl flex overflow-hidden border border-neutral-200 dark:border-neutral-900/80 relative">
 
         {/* Left nav strip */}
         <aside className="w-[58px] flex flex-col items-center py-5 gap-1.5 border-r border-neutral-200 dark:border-neutral-900/60 bg-surface-0 shrink-0 h-full">
           <div className="w-[34px] h-[34px] rounded-lg bg-accent flex items-center justify-center mb-4 transition-colors">
-             <Link key={"/home"} href={"/home"} title={`${"Home"} (${"H"}`}><Send size={20} /> </Link>
+              <Link key={"/home"} href={"/home"} title="Home (H)"><Send size={20} /> </Link>
           </div>
 
           <nav className="flex flex-col gap-2 flex-1 w-full items-center">
@@ -137,10 +169,10 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
             })}
           </nav>
 
-          {/* Theme toggle */}
-          <button onClick={toggleTheme} title={`Switch to ${isDarkMode ? "Light" : "Dark"} Mode`}
+          {/* Theme toggle button */}
+          <button onClick={toggleTheme} title={mounted ? `Switch to ${isDarkMode ? "Light" : "Dark"} Mode` : "Toggle Theme"}
             className="w-[38px] h-[34px] rounded-md flex items-center justify-center text-text-tertiary/90 hover:text-text-primary hover:bg-surface-2 transition-all duration-100 outline-none mb-1">
-            {isDarkMode ? (
+            {mounted && isDarkMode ? (
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-[#e75b85]">
                 <circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41"/>
               </svg>
@@ -168,7 +200,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 
       {/* Keyboard shortcuts overlay */}
       {showShortcuts && (
-        <div className="fixed inset-0 bg-black/40 backdrop-blur-xs flex items-center justify-center z-50 animate-fade-in" onClick={() => setShowShortcuts(false)}>
+        <div className="fixed inset-0 bg-black/40 backdrop-blur-xs flex items-center justify-center z-50 item-fade-in" onClick={() => setShowShortcuts(false)}>
           <div className="bg-surface-0 border border-neutral-200 dark:border-neutral-900/80 rounded-2xl p-6 w-[360px] superhuman-shell-shadow" onClick={(e) => e.stopPropagation()}>
             <h2 className="text-sm font-bold text-text-primary tracking-tight mb-4">Keyboard Shortcuts</h2>
             <div className="space-y-2.5 text-xs">

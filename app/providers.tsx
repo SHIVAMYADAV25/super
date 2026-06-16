@@ -1,7 +1,9 @@
+// app/providers.tsx
 "use client";
 
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { SessionProvider } from "next-auth/react";
+import { ThemeProvider } from "next-themes";
 import { useState } from "react";
 
 export function Providers({ children }: { children: React.ReactNode }) {
@@ -10,9 +12,8 @@ export function Providers({ children }: { children: React.ReactNode }) {
       new QueryClient({
         defaultOptions: {
           queries: {
-            staleTime: 30_000,       // 30s before refetch
+            staleTime: 30_000,
             retry: (failureCount, error) => {
-              // Don't retry on auth errors
               if ((error as { status?: number })?.status === 401) return false;
               return failureCount < 2;
             },
@@ -27,7 +28,10 @@ export function Providers({ children }: { children: React.ReactNode }) {
   return (
     <SessionProvider>
       <QueryClientProvider client={queryClient}>
-        {children}
+        {/* Added ThemeProvider here */}
+        <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
+          {children}
+        </ThemeProvider>
       </QueryClientProvider>
     </SessionProvider>
   );
