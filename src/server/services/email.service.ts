@@ -2292,19 +2292,19 @@ export async function listEmail(
     const withPriority = applyPriorityMap(items, priorityMap);
 
     // Queue enrichment for any cached rows we haven't classified yet.
-    await queueUnenriched(
-      userId,
-      googleSub,
-      inboxCached.map((row) => {
-        const d = row.data as Record<string, unknown>;
-        return {
-          gmailId: (d.id as string) ?? row.entity_id,
-          subject: (d.subject as string) ?? null,
-          snippet: (d.snippet as string) ?? null,
-          body: null, // cache doesn't store body; enrichment falls back to subject+snippet
-        };
-      }),
-    );
+    // await queueUnenriched(
+    //   userId,
+    //   googleSub,
+    //   inboxCached.map((row) => {
+    //     const d = row.data as Record<string, unknown>;
+    //     return {
+    //       gmailId: (d.id as string) ?? row.entity_id,
+    //       subject: (d.subject as string) ?? null,
+    //       snippet: (d.snippet as string) ?? null,
+    //       body: null, // cache doesn't store body; enrichment falls back to subject+snippet
+    //     };
+    //   }),
+    // );
 
     return {
       items: filterByPriority(withPriority, opts.priority),
@@ -2419,6 +2419,8 @@ export async function modifyEmail(
 
     if (opts.isRead === true) removeLabelIds.push("UNREAD");
     if (opts.isRead === false) addLabelIds.push("UNREAD");
+
+    console.log(gmailId,addLabelIds,removeLabelIds);
 
     if (addLabelIds.length || removeLabelIds.length) {
       await tenant.gmail.api.messages.modify({ id: gmailId, addLabelIds, removeLabelIds });
@@ -2537,7 +2539,7 @@ export async function handleNewEmail(googleSub: string, userId: string, gmailId:
     }
 
     if (!isInboxMessage(msg.labelIds ?? [])) {
-      logger.debug("handleNewEmail: skipping non-inbox message", { gmailId });
+      logger.info("handleNewEmail: skipping non-inbox message", { gmailId });
       return;
     }
 

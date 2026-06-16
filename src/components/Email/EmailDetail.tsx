@@ -1,9 +1,9 @@
 "use client";
 
-import React, { useMemo } from "react";
-import { useQuery } from "@tanstack/react-query";
+import React, { useEffect, useMemo, useRef } from "react";
+import { QueryClient, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/src/lib/api-client";
-import { Email } from "@/src/types";
+import { Email, EmailListItem, PaginatedResponse } from "@/src/types";
 import DOMPurify from "isomorphic-dompurify";
 import { formatEmailBodyText } from "./body-parser-utils"; 
 import { ArrowLeft, Shield, MoreHorizontal, Clock, CheckCircle2, ChevronLeft, ChevronRight, CornerUpLeft, ReplyAll, Forward, Download, Paperclip } from "lucide-react";
@@ -46,6 +46,40 @@ export function EmailDetail({
     
     return null;
   }, [networkPayload]);
+
+
+const queryClient = useQueryClient();
+
+const markReadMutation = useMutation({
+  mutationFn: (gmailId: string) =>
+    api.patch(`/api/emails/${gmailId}`, {
+      isRead: true,
+    }),
+
+  onSuccess: (_, gmailId) => {
+    queryClient.setQueryData<PaginatedResponse<EmailListItem>>(
+      ["emails"],
+      (old) => {
+        if (!old) return old;
+
+        return {
+          ...old,
+          items: old.items.map((item) =>
+            item.gmailId === gmailId
+              ? { ...item, isRead: true }
+              : item
+          ),
+        };
+      }
+    );
+  },
+});
+
+useEffect(() => {
+  if (email && !email.isRead) {
+    markReadMutation.mutate(gmailId);
+  }
+}, [email, gmailId]);
 
   const safeHtml = email?.body && (email.body.includes("<p") || email.body.includes("<div") || email.body.includes("<table"))
     ? DOMPurify.sanitize(email.body, { 

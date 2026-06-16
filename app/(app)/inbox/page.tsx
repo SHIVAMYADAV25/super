@@ -868,7 +868,7 @@ export default function InboxPage() {
 
     es.addEventListener("message", (e: MessageEvent) => {
       try {
-        const event = JSON.parse(e.data) as SSEEvent;
+        const event = JSON.parse(e.data) as any;
 
         if (event.type === "new_email") {
           if (event.data.email) {

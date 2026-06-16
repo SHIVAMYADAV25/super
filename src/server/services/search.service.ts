@@ -171,7 +171,9 @@ async function textSearch(
   try {
     const tenant = getTenant(googleSub);
     const result = await tenant.gmail.api.messages.list({ q, maxResults: limit });
-    const ids = (result.messages ?? []).map((m: { id: string }) => m.id).filter(Boolean);
+    const ids = (result.messages ?? [])
+  .map((m) => m.id)
+  .filter((id): id is string => Boolean(id));
     return fetchGmailResultsByIds(googleSub, ids);
   } catch (err) {
     logger.warn("Gmail API text search failed", { error: String(err) });

@@ -28,6 +28,7 @@ interface CalendarEvent {
   createdAt: string;
   // UI-only field derived from summary keyword matching or stored on creation
   calendar?: string;
+  calendarType?: string;
 }
 
 interface ApiResponse<T> {
@@ -461,7 +462,7 @@ function EventDetail({ event, dark, onClose, onDeleted, onRsvp }: EventDetailPro
         {/* RSVP buttons — POST /api/calendar/events/[id]/rsvp */}
         <div style={{ display: "flex", gap: 8, marginBottom: 8 }}>
           <button
-            onClick={() => rsvpMutation.mutate("confirmed")}
+            onClick={() => rsvpMutation.mutate("accepted")}
             disabled={rsvpMutation.isPending}
             style={{ flex: 1, padding: "6px 0", borderRadius: 8, fontSize: 11, fontWeight: 700, border: "1px solid rgba(34,197,94,0.3)", color: "#22c55e", background: "transparent", cursor: "pointer", textTransform: "uppercase", letterSpacing: "0.05em" }}>
             Accept
@@ -473,7 +474,7 @@ function EventDetail({ event, dark, onClose, onDeleted, onRsvp }: EventDetailPro
             Maybe
           </button>
           <button
-            onClick={() => rsvpMutation.mutate("cancelled")}
+            onClick={() => rsvpMutation.mutate("declined")}
             disabled={rsvpMutation.isPending}
             style={{ flex: 1, padding: "6px 0", borderRadius: 8, fontSize: 11, fontWeight: 700, border: "1px solid rgba(239,68,68,0.3)", color: "#ef4444", background: "transparent", cursor: "pointer", textTransform: "uppercase", letterSpacing: "0.05em" }}>
             Decline
@@ -983,7 +984,7 @@ export default function CalendarPage() {
                     });
                     const myOverlapIdx  = overlapping.findIndex(e => e.id === event.id);
                     const overlapCount  = overlapping.length;
-                    console.log("frontend call event",event);
+                    // console.log("frontend call event",event.calendarType);
                     const evStyle       = getCalendarStyle(event.calendarType ?? "Work", dark);
                     const isShort       = height < 6;
 
