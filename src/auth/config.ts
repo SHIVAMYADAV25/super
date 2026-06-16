@@ -105,7 +105,7 @@ export const authConfig : NextAuthOptions = {
                 session.user.googleSub = token.googleSub;
             }
 
-            console.log("SESSION USER", session.user);
+            // console.log("SESSION USER", session.user);
 
             if(token.error){
                 session.error = token.error;

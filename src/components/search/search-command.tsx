@@ -11,6 +11,7 @@ import {
   buildGmailQuery,
   type GmailQueryFilters,
 } from "./gmail-query-builder";
+import { useRouter } from "next/navigation";
 
 interface SearchCommandProps {
   onClose: () => void;
@@ -157,6 +158,7 @@ export function SearchCommand({ onClose, onSelectEmail }: SearchCommandProps) {
   const [advancedFilters, setAdvancedFilters] = useState<GmailQueryFilters>(EMPTY_FILTERS);
   const [advancedQuery, setAdvancedQuery] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
+  const router = useRouter(); // 2. Initialize the router
 
   // Debounce 300ms
   useEffect(() => {
@@ -185,19 +187,19 @@ export function SearchCommand({ onClose, onSelectEmail }: SearchCommandProps) {
   const results = data?.results ?? [];
   const showSpinner = shouldSearch && (isLoading || isFetching);
 
-  const handleSelect = useCallback(
+const handleSelect = useCallback(
     (result: SearchResult) => {
       if (result.type === "email") {
         if (onSelectEmail) {
           onSelectEmail(result.id);
         } else {
-          // Fallback: navigate to inbox with email open
-          window.location.href = `/inbox?email=${result.id}`;
+          // 3. Use Next.js router for seamless client-side navigation
+          router.push(`/inbox/${result.id}`);
         }
       }
       onClose();
     },
-    [onClose, onSelectEmail],
+    [onClose, onSelectEmail, router] // Add router to dependencies
   );
 
   // Keyboard navigation

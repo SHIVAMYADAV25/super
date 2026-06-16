@@ -171,5 +171,5 @@ try {
   },
 };
  
-const handler = NextAuth(extendedConfig);
+const handler = (extendedConfig);
 export { handler as GET, handler as POST };

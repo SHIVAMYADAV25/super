@@ -263,11 +263,11 @@ export async function linkCorsairTenant(
 ):Promise<void> {
     try{
         const tenantId = getTenantId(googleSub);
-        console.log("LINK TENANT", {
-            userId,
-            googleSub,
-            tenantId,
-            });
+        // console.log("LINK TENANT", {
+        //     userId,
+        //     googleSub,
+        //     tenantId,
+        //     });
 
         // Corsair only auto-creates the corsair_accounts row inside
         // processOAuthCallback (the /api/connect flow) or `corsair setup`.
@@ -321,10 +321,10 @@ export async function linkCorsairTenant(
 
         // Store Gmail OAuth credentials for this tenant
         // Corsair uses these for every gmail.api.* call and handles refresh
-        console.log("SETTING TOKENS FOR", {
-        googleSub,
-        tenantId,
-        });
+        // console.log("SETTING TOKENS FOR", {
+        // googleSub,
+        // tenantId,
+        // });
         await tenant.gmail.keys.set_access_token(tokens.accessToken);
         if(tokens.refreshToken){
             await tenant.gmail.keys.set_refresh_token(tokens.refreshToken);

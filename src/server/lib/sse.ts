@@ -25,10 +25,9 @@ if(process.env.NODE_ENV !== "production"){
  * Emit an SSE event to a specific user's stream.
  */
 
-/** Emit an SSE event to a specific user's stream. `tenantId` = "user_<googleSub>". */
-export function emitToUser(tenantId: string, event: SSEEvent): void {
-  emitter.emit(`user:${tenantId}`, event);
-}
+export function emitToUser(userId : string,event : SSEEvent):void{
+    emitter.emit(`user:${userId}`,event)
+};
 
 /**
  * Subscribe to SSE events for a user.

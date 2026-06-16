@@ -51,7 +51,7 @@ export function withAuth(handler:RouteHandler){
             };
 
 
-            console.log("AUTH USER", user);
+            // console.log("AUTH USER", user);
             // Augment request with user
             // This literally adds: user onto the request.
             (req as AuthedRequest).user = user;

@@ -106,8 +106,6 @@ export async function listEvent(
         .from(calendarEvents)
         .where(eq(calendarEvents.userId, userId));
 
-    // console.log(rows)
-
       typeMap = Object.fromEntries(
         rows.map(r => [r.gcalId, (r.calendarType as CalendarType) ?? "Work"])
       );
@@ -115,7 +113,6 @@ export async function listEvent(
     
     }
 
-    // console.log(typeMap)
 
     // Upsert in background — preserves existing calendarType
     // void upsertEventsBatch(userId, items, typeMap);
@@ -161,7 +158,6 @@ export async function createEvent(
 ): Promise<CalendarEvent> {
   try {
     const tenant = getTenant(tenantId);
-    console.log("start creating : " ,input)
 
     const event = await tenant.googlecalendar.api.events.create({
       event: {
@@ -180,7 +176,7 @@ export async function createEvent(
 
     // FIX: calendarType now exists on CreateEventInput (added to Zod schema)
     const calendarType: CalendarType = (input.calendarType as CalendarType) ?? "Work";
-    console.log("creating :" ,calendarType)
+    // console.log("creating :" ,calendarType)
     await upsertEvent(userId, event, calendarType);
 
     logger.info("Calendar event created", { userId, gcalId: event.id, calendarType });
@@ -306,7 +302,7 @@ export async function rsvpEvent(
       a.email === userEmail ? { ...a, responseStatus: input.status } : a
     );
 
-    console.log( "uupdate ",updatedAttendees)
+    // console.log( "uupdate ",updatedAttendees)
 
     const updated = await tenant.googlecalendar.api.events.update({
       id: gcalId,
@@ -322,7 +318,7 @@ export async function rsvpEvent(
       sendUpdates: "all",
     });
 
-    console.log(updated);
+    // console.log(updated);
 
     const calendarType = await getStoredCalendarType(userId, gcalId);
     await upsertEvent(userId, updated, calendarType);
