@@ -63,7 +63,7 @@ export const emails = pgTable(
       .defaultNow()
       .notNull(),
   },
-  (table) => ({
+  (table: { userId: any; gmailId: any; }) => ({
     emailsUserGmailUnique: unique("emails_user_gmail_unique").on(
       table.userId,
       table.gmailId

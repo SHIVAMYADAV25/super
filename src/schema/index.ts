@@ -1,3 +1,9 @@
+// src/schema/index.ts — full replacement
+// Changes vs your current file:
+//   1. Added calendarType to CreateEventBaseSchema and UpdateEventSchema
+//   2. Fixed attendees: array of email strings (matching your existing CreateEventInput type)
+//   3. Exported CalendarTypeEnum for reuse
+
 import z from "zod";
 
 export const SessionUserSchema = z.object({
@@ -22,7 +28,7 @@ export const SendEmailSchema = z.object({
     bcc : z.array(z.string().email("Invalid BCC email")).optional().default([]),
     body : z.string().min(1,"Email body is required"),
     subject : z.string().min(1,"Subject is required").max(998,"Subject too long"),
-    draftId : z.string().uuid().optional(), // our internal draft ID to clean up
+    draftId : z.string().uuid().optional(),
 });
 
 export const ListEmailsSchema = z.object({
@@ -30,12 +36,10 @@ export const ListEmailsSchema = z.object({
     .enum(["INBOX","SENT","DRAFT","TRASH","SPAM"])
     .optional()
     .default("INBOX"),
-    q : z.string().max(500).optional(), // Gmail search query
+    q : z.string().max(500).optional(),
     limit : z.coerce.number().int().min(1).max(100).optional().default(50),
     labelIds : z.array(z.string()).optional(), 
     pageToken: z.string().optional(),
-    // Filter results to a single priority bucket (set by the LLM enrichment
-    // pipeline). "all" (default) returns everything.
     priority: z.enum(["all", "high", "normal", "low"]).optional().default("all"),
 })
 
@@ -53,8 +57,6 @@ export const MarkEmailSchema = z.object({
     .optional(),
 })
 
-// draft
-
 export const SaveDraftSchema = z.object({
     to : z.array(z.string().email()).optional().default([]),
     cc : z.array(z.string().email()).optional().default([]),
@@ -64,8 +66,16 @@ export const SaveDraftSchema = z.object({
 
 export const UpdateDraftSchema = SaveDraftSchema;
 
+// ─── Calendar ─────────────────────────────────────────────────────────────────
 
-// calendar
+// ── NEW: shared enum used by both Create and Update schemas ──────────────────
+export const CalendarTypeEnum = z.enum([
+  "Work",
+  "Personal",
+  "Meetings",
+  "Study",
+  "Deadlines",
+]);
 
 const CreateEventBaseSchema = z.object({
   summary: z.string().min(1, "Event title is required").max(500),
@@ -78,6 +88,7 @@ const CreateEventBaseSchema = z.object({
     message: "Invalid end time (ISO 8601 required)",
   }),
   timeZone: z.string().optional(),
+  // attendees is array of email strings — matches your CreateEventInput type
   attendees: z
     .array(z.string().email("Invalid attendee email"))
     .max(100)
@@ -87,6 +98,9 @@ const CreateEventBaseSchema = z.object({
     .enum(["all", "externalOnly", "none"])
     .optional()
     .default("all"),
+
+  // ── NEW: user-chosen calendar category, stored in DB ──────────────────────
+  calendarType: CalendarTypeEnum.optional().default("Work"),
 });
 
 export const CreateEventSchema = CreateEventBaseSchema.refine(
@@ -102,6 +116,8 @@ export const UpdateEventSchema = CreateEventBaseSchema.partial().extend({
     .enum(["all", "externalOnly", "none"])
     .optional()
     .default("all"),
+  // ── NEW: allow updating calendarType independently ─────────────────────
+  calendarType: CalendarTypeEnum.optional(),
 });
 
 export const ListEventSchema = z.object({
@@ -112,9 +128,8 @@ export const ListEventSchema = z.object({
 })
 
 export const RSVPSchema = z.object({
-    status : z.enum(["accepted","declined","tentative"])
+    status : z.enum(["confirmed","cancelled","tentative"])
 });
-
 
 // search
 
@@ -124,8 +139,7 @@ export const searchSchema = z.object({
     limit : z.coerce.number().int().min(1).max(50).optional().default(20),
 });
 
-
-//chat
+// chat
 
 export const ChatMessageSchema = z.object({
     prompt:z.string()
@@ -138,11 +152,10 @@ export const ChatMessageSchema = z.object({
             content : z.string()
         }),
     )
-    .max(20) // limit the context window
+    .max(20)
     .optional()
     .default([]),
 })
-
 
 export type SendEmailInput = z.infer<typeof SendEmailSchema>;
 export type ListEmailsInput = z.infer<typeof ListEmailsSchema>;

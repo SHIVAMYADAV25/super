@@ -40,7 +40,7 @@ export const GET = withAuth(async (req) => {
     const { searchParams } = new URL(req.url);
     const input = searchSchema.parse({
       q: searchParams.get("q"),
-      mode: searchParams.get("mode") ?? undefined,
+      mode: searchParams.get("mode") ?? "both",
       limit: searchParams.get("limit") ?? undefined,
     });
 

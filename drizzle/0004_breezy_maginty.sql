@@ -1,0 +1,1 @@
+ALTER TABLE "calendar_events" ADD COLUMN "calendar_type" text DEFAULT 'Work' NOT NULL;

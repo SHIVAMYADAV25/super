@@ -55,24 +55,40 @@ export const env = createEnv({
         NODE_ENV : z
             .enum(["development","production","test"])
             .default("development"),
+
+        ANTHROPIC_API_KEY: z.string().optional(),
+
+        LLM_PROVIDER_AGENT_KEY: z.string().optional(),
+
+        LLM_PROVIDER_FOR_AGENT: z
+        .enum([
+            "nex",
+            "anthropic",
+            "openai_agents",
+            "vercel_ai",
+        ])
+        .optional(),
     },
     client : {
         NEXT_PUBLIC_APP_URL : z.string().url(),
     },
     runtimeEnv:{
-        DATABASE_URL : process.env.DATABASE_URL,
-        NEXTAUTH_SECRET:process.env.NEXTAUTH_SECRET,
+        DATABASE_URL: process.env.DATABASE_URL,
+        NEXTAUTH_SECRET: process.env.NEXTAUTH_SECRET,
         NEXT_PUBLIC_APP_URL: process.env.NEXT_PUBLIC_APP_URL,
-        NEXTAUTH_URL : process.env.NEXTAUTH_URL,
-        GOOGLE_CLIENT_ID:process.env.GOOGLE_CLIENT_ID,
-        GOOGLE_CLIENT_SECRET : process.env.GOOGLE_CLIENT_SECRET,
-        CORSAIR_KEK : process.env.CORSAIR_KEK,
-        NODE_ENV : process.env.NODE_ENV,
-        OPENAI_API_KEY:process.env.OPENAI_API_KEY,
+        NEXTAUTH_URL: process.env.NEXTAUTH_URL,
+        GOOGLE_CLIENT_ID: process.env.GOOGLE_CLIENT_ID,
+        GOOGLE_CLIENT_SECRET: process.env.GOOGLE_CLIENT_SECRET,
+        CORSAIR_KEK: process.env.CORSAIR_KEK,
+        NODE_ENV: process.env.NODE_ENV,
+        OPENAI_API_KEY: process.env.OPENAI_API_KEY,
         OPENROUTER_API_KEY: process.env.OPENROUTER_API_KEY,
         GEMINI_API_KEY: process.env.GEMINI_API_KEY,
         LLM_CHAT_MODEL: process.env.LLM_CHAT_MODEL,
         LLM_EMBEDDING_MODEL: process.env.LLM_EMBEDDING_MODEL,
+        ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY,
+        LLM_PROVIDER_AGENT_KEY: process.env.LLM_PROVIDER_AGENT_KEY,
+        LLM_PROVIDER_FOR_AGENT: process.env.LLM_PROVIDER_FOR_AGENT
     },
     skipValidation : !!process.env.SKIP_ENV_VALIDATION
 });

@@ -42,6 +42,7 @@ export const POST = withAuth(async (req) => {
             input.startTime,
             input.endTime
         );
+        console.log("route input",input);
 
         const event = await createEvent(req.user.googleSub,req.user.id,input);
 

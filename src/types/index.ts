@@ -91,7 +91,7 @@ export interface SendEmailInput {
 }
 
 // ─── Calendar ──────────────────────────────────────────────────────────────────
- 
+export type CalendarType = "Work" | "Personal" | "Meetings" | "Study" | "Deadlines";
 export type RSVPStatus = "accepted" | "declined" | "tentative" | "needsAction";
 export type EventStatus = "confirmed" | "tentative" | "cancelled";
 
@@ -123,6 +123,7 @@ export interface CalendarEvent {
   htmlLink?: string;
   createdAt: Date;
   recurringEventId?: string | null;
+  calendarType: CalendarType;
 }
 
 export interface CreateEventInput {
@@ -170,6 +171,35 @@ export interface ChatMessage {
 // ─── Webhook SSE ───────────────────────────────────────────────────────────────
  
 export interface SSEEvent {
-  type: "new_email" | "new_event" | "updated_event" | "heartbeat" | "email_enriched";
+  type:
+    | "new_email"
+    | "new_event"
+    | "updated_event"
+    | "heartbeat"
+    | "email_enriched"
+
+    // Agent lifecycle
+    | "agent_status"
+
+    // Tool lifecycle
+    | "tool_start"
+    | "tool_success"
+    | "tool_error";
+
   data?: unknown;
+}
+
+// Add/update SearchResult in src/types.ts
+
+export interface SearchResult {
+  type: "email" | "event";
+  id: string;
+  /** Subject line or event title */
+  title: string;
+  /** Sender name/email (email results only) */
+  subtitle?: string;
+  snippet: string;
+  date: Date | null;
+  /** 0.0–1.0 relevance score; higher = closer match */
+  relevanceScore?: number;
 }

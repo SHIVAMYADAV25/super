@@ -1,7 +1,11 @@
+// calendar_events schema — add calendarType column
+// Migration: ALTER TABLE calendar_events ADD COLUMN calendar_type text NOT NULL DEFAULT 'Work';
+
 import { json, pgTable, text, timestamp, uniqueIndex, uuid } from "drizzle-orm/pg-core";
 import { users } from "./users";
 import { Attendee, EventStatus } from "@/src/types";
 
+export type CalendarType = "Work" | "Personal" | "Meetings" | "Study" | "Deadlines";
 
 export const calendarEvents = pgTable(
   "calendar_events",
@@ -26,6 +30,12 @@ export const calendarEvents = pgTable(
     attendees: json("attendees").$type<Attendee[]>().notNull().default([]),
 
     status: text("status").$type<EventStatus>().notNull().default("confirmed"),
+
+    // ── NEW: user-chosen calendar category ──────────────────────────────────
+    calendarType: text("calendar_type")
+      .$type<CalendarType>()
+      .notNull()
+      .default("Work"),
 
     htmlLink: text("html_link"),
     recurringEventId: text("recurring_event_id"),

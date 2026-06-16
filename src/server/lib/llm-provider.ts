@@ -442,6 +442,7 @@ export async function getEmbedding(
       if (!env.GEMINI_API_KEY) {
         throw new Error("GEMINI_API_KEY is not set — required for Gemini embedding model");
       }
+      logger.debug("embedding getting called");
       const ai = new GoogleGenAI({ apiKey: env.GEMINI_API_KEY });
       const result = await ai.models.embedContent({
         model: config.model,
