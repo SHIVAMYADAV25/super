@@ -1,50 +1,40 @@
+// src/server/lib/sse.ts
+// Replace the in-memory implementation with Redis pub/sub:
 
-
-// Singleton in-process emitter
-// For multi-instance deployments, replace with Redis pub/sub
-
-import { logger } from "@/src/lib/logger";
+import { redis } from "@/src/lib/redis";
 import { SSEEvent } from "@/src/types";
-import { EventEmitter } from "events";
+import Redis from "ioredis";
 
-const globalForSSE = globalThis as unknown as {sseEmitter : EventEmitter | undefined};
+type SSEHandler = (event: SSEEvent) => void;
+const localSubs = new Map<string, Set<SSEHandler>>();
 
-const emitter : EventEmitter =
-globalForSSE.sseEmitter ?? 
-(() => {
-    const e = new EventEmitter();
-    e.setMaxListeners(1000) //  support many concurrent users
-    return e;
-})();
+// Subscriber instance (must be separate from the publisher)
+const redisSub = new Redis(process.env.REDIS_URL!);
 
-if(process.env.NODE_ENV !== "production"){
-    globalForSSE.sseEmitter = emitter;
+redisSub.on("message", (channel: string, message: string) => {
+  try {
+    const event = JSON.parse(message) as SSEEvent;
+    localSubs.get(channel)?.forEach((h) => h(event));
+  } catch { /* ignore */ }
+});
+
+export function subscribeToUser(tenantId: string, handler: SSEHandler): () => void {
+  if (!localSubs.has(tenantId)) {
+    localSubs.set(tenantId, new Set());
+    void redisSub.subscribe(tenantId);
+  }
+  localSubs.get(tenantId)!.add(handler);
+
+  return () => {
+    localSubs.get(tenantId)?.delete(handler);
+    if (localSubs.get(tenantId)?.size === 0) {
+      localSubs.delete(tenantId);
+      void redisSub.unsubscribe(tenantId);
+    }
+  };
 }
 
-/**
- * Emit an SSE event to a specific user's stream.
- */
-
-export function emitToUser(userId : string,event : SSEEvent):void{
-    emitter.emit(`user:${userId}`,event)
-};
-
-/**
- * Subscribe to SSE events for a user.
- * Returns an unsubscribe function.
- */
-
-export function subscribeToUser(
-    userId: string,
-    handler : (event : SSEEvent) => void,
-):()=>void{
-    const channel = `user:${userId}`;
-
-    emitter.on(channel,handler);
-    logger.debug("SSE subscriber added", { userId });
-
-    return () => {
-        emitter.off(channel,handler);
-        logger.debug("SSE subscriber removed", { userId });
-    }
+export function emitToUser(tenantId: string, event: SSEEvent): void {
+  // Publish to Redis — all instances receive it via redisSub
+  void redis.publish(tenantId, JSON.stringify(event));
 }

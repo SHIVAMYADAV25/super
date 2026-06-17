@@ -682,6 +682,7 @@ import { SearchCommand } from "@/src/components/search/search-command";
 import { isToday, isYesterday, subDays, isAfter, startOfMonth } from "date-fns";
 import { Pencil, Search } from "lucide-react";
 import { EmailDetail } from "@/src/components/Email/EmailDetail";
+import router from "next/router";
 
 
 
@@ -878,7 +879,7 @@ export default function InboxPage() {
   const [composeOpen, setComposeOpen] = useState(false);
   const [replyTo, setReplyTo] = useState<Email | null>(null);
   const [searchOpen, setSearchOpen] = useState(false);
-
+  const [gChord, setGChord] = useState(false);
   useEffect(() => {
     const openCompose = () => setComposeOpen(true);
     const openSearch = () => setSearchOpen(true);
@@ -1000,34 +1001,65 @@ export default function InboxPage() {
     [emails],
   );
 
-  const handleKeyDown = useCallback((e: KeyboardEvent) => {
-    const tag = (e.target as HTMLElement)?.tagName;
-    if (tag === "INPUT" || tag === "TEXTAREA" || (e.target as HTMLElement)?.isContentEditable) return;
+const handleKeyDown = useCallback((e: KeyboardEvent) => {
+  // Don't fire if user is typing in an input/textarea
+  if (["INPUT", "TEXTAREA"].includes((e.target as HTMLElement).tagName)) return;
 
-    if (e.key === "j" || e.key === "ArrowDown") {
-      e.preventDefault();
-      const next = Math.min(selectedIndex + 1, filteredEmails.length - 1);
-      if (filteredEmails[next]) { setSelectedIndex(next); setSelectedId(filteredEmails[next].gmailId); }
-    }
-    if (e.key === "k" || e.key === "ArrowUp") {
-      e.preventDefault();
-      const prev = Math.max(selectedIndex - 1, 0);
-      if (filteredEmails[prev]) { setSelectedIndex(prev); setSelectedId(filteredEmails[prev].gmailId); }
-    }
-    if (e.key === "e" && selectedId) { archiveMutation.mutate(selectedId); setSelectedId(null); }
-    if (e.key === "r" && selectedId) {
-      const active = filteredEmails.find((em) => em.gmailId === selectedId);
-      if (active) {
-        setReplyTo({ id: active.id, userId: "", gmailId: active.gmailId, threadId: active.threadId, fromAddr: active.fromAddr, toAddrs: [], ccAddrs: [], subject: active.subject, snippet: active.snippet, body: null, isRead: active.isRead, labels: active.labels, priority: active.priority, attachments: [], receivedAt: active.receivedAt });
-        setComposeOpen(true);
-      }
-    }
-  }, [filteredEmails, selectedId, selectedIndex, archiveMutation]);
+  // J / K — navigate emails
+  if (e.key === "j" || e.key === "ArrowDown") {
+    e.preventDefault();
+    setSelectedIndex((i) => Math.min(i + 1, emails.length - 1));
+  }
+  if (e.key === "k" || e.key === "ArrowUp") {
+    e.preventDefault();
+    setSelectedIndex((i) => Math.max(i - 1, 0));
+  }
 
-  useEffect(() => {
-    window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [handleKeyDown]);
+  // E — archive selected
+  if (e.key === "e" && selectedEmail) {
+    archiveMutation.mutate(selectedEmail.gmailId);
+  }
+
+  // R — reply to selected
+  if (e.key === "r" && selectedEmail) {
+    setReplyTo(selectedEmail);
+    setComposeOpen(true);
+  }
+
+  // C — compose new
+  if (e.key === "c") {
+    setComposeOpen(true);
+  }
+
+  // / or Cmd+K — open search
+  if (e.key === "/" || (e.key === "k" && (e.metaKey || e.ctrlKey))) {
+    e.preventDefault();
+    setSearchOpen(true);
+  }
+
+  // Escape — close panels
+  if (e.key === "Escape") {
+    setSelectedEmail(null);
+    setComposeOpen(false);
+    setSearchOpen(false);
+  }
+
+  // G-chord navigation
+  if (e.key === "g") {
+    setGChord(true);
+    setTimeout(() => setGChord(false), 1000);
+  }
+  if (gChord) {
+    if (e.key === "i") router.push("/inbox");
+    if (e.key === "c") router.push("/calendar");
+    if (e.key === "a") router.push("/chat");
+  }
+}, [selectedEmail, emails, selectedIndex, gChord, archiveMutation, router]);
+
+useEffect(() => {
+  window.addEventListener("keydown", handleKeyDown);
+  return () => window.removeEventListener("keydown", handleKeyDown);
+}, [handleKeyDown]);
 
   return (
     <div className="w-full h-full bg-surface-0 flex box-border relative transition-colors duration-150">

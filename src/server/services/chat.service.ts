@@ -2852,8 +2852,43 @@ async function runOpenAIAgent(
 
 // ─── Vercel AI ─────────────────────────────────────────────────────────────────
 
-async function runVercelAiAgent(_userEmail: string, _messages: Array<{ role: "user" | "assistant"; content: string }>): Promise<string> {
-  return "Task completed.";
+// src/server/services/chat.service.ts
+// Replace runVercelAiAgent with:
+
+async function runVercelAiAgent(
+  corsairTenantId: string,
+  userEmail: string,
+  messages: Array<{ role: "user" | "assistant"; content: string }>,
+): Promise<string> {
+  const { generateText } = await import("ai").catch(() => {
+    throw new Error("'ai' package not installed — run: pnpm add ai @ai-sdk/anthropic");
+  });
+  const { anthropic } = await import("@ai-sdk/anthropic").catch(() => {
+    throw new Error("@ai-sdk/anthropic not installed");
+  });
+  const { createVercelAiMcpClient } = await import("@corsair-dev/mcp").catch(() => {
+    throw new Error("@corsair-dev/mcp not installed");
+  });
+
+  const tenantCorsair = corsair.withTenant(corsairTenantId);
+  const mcpClient = await createVercelAiMcpClient({ corsair: tenantCorsair });
+
+  try {
+    const tools = await mcpClient.tools();
+    const { text } = await generateText({
+      model: anthropic("claude-haiku-4-5"),
+      tools,
+      system: buildAgentSystemPrompt(userEmail),
+      messages: messages.map((m) => ({
+        role: m.role as "user" | "assistant",
+        content: m.content,
+      })),
+      maxSteps: 10,
+    });
+    return text || "Task completed.";
+  } finally {
+    await mcpClient.close().catch(() => {});
+  }
 }
 
 // ─── Agent dispatcher ──────────────────────────────────────────────────────────
@@ -2888,7 +2923,7 @@ async function runAgent(
       return { reply, model: "gpt-4o-mini", provider };
     }
     case "vercel_ai": {
-      const reply = await runVercelAiAgent(userEmail, messages);
+      const reply = await runVercelAiAgent(corsairTenantId,userEmail, messages);
       return { reply, model: "claude-haiku-4-5 (vercel-ai)", provider };
     }
   }

@@ -256,7 +256,7 @@ export const CHAT_MODELS = {
 export type ChatModelKey = keyof typeof CHAT_MODELS;
 
 export const ACTIVE_CHAT_MODEL: ChatModelKey =
-  (env.LLM_CHAT_MODEL as ChatModelKey | undefined) ?? "gpt-oss-120b";
+  (env.LLM_CHAT_MODEL as ChatModelKey | undefined) ?? "claude-sonnet-4-6";
 
 // ─── Embedding registry ────────────────────────────────────────────────────────
 

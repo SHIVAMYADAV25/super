@@ -21,6 +21,7 @@
     "@tanstack/react-query": "^5.101.0",
     "@upstash/ratelimit": "^2.0.8",
     "@upstash/redis": "^1.38.0",
+    "ai": "^6.0.207",
     "bullmq": "^5.78.1",
     "corsair": "^0.1.75",
     "date-fns": "^4.4.0",
