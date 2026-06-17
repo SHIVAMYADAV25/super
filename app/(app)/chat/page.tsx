@@ -1,363 +1,3 @@
-// "use client";
-
-// import { useState, useRef, useEffect } from "react";
-// import { nanoid } from "nanoid";
-// import type { ChatMessage, AgentAction } from "@/src/types";
-
-// const EXAMPLE_PROMPTS = [
-//   "What emails did I get today?",
-//   "Schedule a standup tomorrow at 9am with my team",
-//   "Reply to the last email from Alice",
-//   "What meetings do I have this week?",
-// ];
-
-// function ActionCard({ action }: { action: AgentAction }) {
-//   const icons: Record<string, string> = {
-//     email_sent: "✉️",
-//     event_created: "📅",
-//     event_updated: "🔄",
-//   };
-
-//   return (
-//     <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-accent/10 border border-accent/20 text-xs text-accent">
-//       <span>{icons[action.type] ?? "✓"}</span>
-//       <span>{action.summary}</span>
-//     </div>
-//   );
-// }
-
-// function MessageBubble({ message }: { message: ChatMessage & { isStreaming?: boolean } }) {
-//   const isUser = message.role === "user";
-
-//   return (
-//     <div className={`flex gap-3 ${isUser ? "justify-end" : "justify-start"}`}>
-//       {!isUser && (
-//         <div className="w-7 h-7 rounded-lg bg-accent/20 flex items-center justify-center shrink-0 mt-0.5">
-//           <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-accent">
-//             <path d="M12 2a10 10 0 110 20A10 10 0 0112 2z" />
-//             <path d="M12 6v6l4 2" strokeLinecap="round" />
-//           </svg>
-//         </div>
-//       )}
-
-//       <div className={`max-w-[80%] ${isUser ? "items-end" : "items-start"} flex flex-col gap-2`}>
-//         <div
-//           className={`px-4 py-2.5 rounded-2xl text-sm leading-relaxed ${
-//             isUser
-//               ? "bg-accent text-white rounded-br-sm"
-//               : "bg-surface-2 text-text-primary rounded-bl-sm"
-//           }`}
-//         >
-//           {message.content}
-//           {message.isStreaming && (
-//             <span className="inline-flex gap-0.5 ml-1.5 align-middle">
-//               {[0, 1, 2].map((i) => (
-//                 <span
-//                   key={i}
-//                   className="w-1 h-1 rounded-full bg-current opacity-60 animate-bounce"
-//                   style={{ animationDelay: `${i * 150}ms` }}
-//                 />
-//               ))}
-//             </span>
-//           )}
-//         </div>
-
-//         {/* Action cards */}
-//         {message.actions && message.actions.length > 0 && (
-//           <div className="flex flex-wrap gap-2">
-//             {message.actions.map((action, i) => (
-//               <ActionCard key={i} action={action} />
-//             ))}
-//           </div>
-//         )}
-//       </div>
-//     </div>
-//   );
-// }
-
-// export default function ChatPage() {
-//   const [messages, setMessages] = useState<(ChatMessage & { isStreaming?: boolean })[]>([]);
-//   const [input, setInput] = useState("");
-//   const [isLoading, setIsLoading] = useState(false);
-//   const messagesEndRef = useRef<HTMLDivElement>(null);
-//   const inputRef = useRef<HTMLTextAreaElement>(null);
-
-// type Activity = {
-//   id: string;
-//   level: "info" | "success" | "error";
-//   message: string;
-//   timestamp: number;
-// };
-
-// const [activities, setActivities] = useState<Activity[]>([]);
-
-//   useEffect(() => {
-//     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-//   }, [messages, activities]);
-
-//   useEffect(() => {
-//     const es = new EventSource("/api/events/stream");
-
-//     es.addEventListener("agent_status", (event) => {
-//       const data = JSON.parse(event.data);
-
-//       setActivities((prev) => [
-//         ...prev,
-//         {
-//           id: crypto.randomUUID(),
-//           level: data.level ?? "info",
-//           message: data.message,
-//           timestamp: Date.now(),
-//         },
-//       ]);
-//     });
-
-//     return () => es.close();
-//   }, []);
-
-//   async function sendMessage() {
-//     const prompt = input.trim();
-//     if (!prompt || isLoading) return;
-//     setActivities([]);
-
-//     const userMsg: ChatMessage = {
-//       id: nanoid(),
-//       role: "user",
-//       content: prompt,
-//       createdAt: new Date(),
-//     };
-
-//     const assistantMsgId = nanoid();
-//     const assistantMsg: ChatMessage & { isStreaming: boolean } = {
-//       id: assistantMsgId,
-//       role: "assistant",
-//       content: "",
-//       actions: [],
-//       createdAt: new Date(),
-//       isStreaming: true,
-//     };
-
-//     setMessages((prev) => [...prev, userMsg, assistantMsg]);
-//     setInput("");
-//     setIsLoading(true);
-
-//     // Build conversation history for context
-//     const history = messages.slice(-10).map((m) => ({
-//       role: m.role,
-//       content: m.content,
-//     }));
-
-//     try {
-//       const response = await fetch("/api/chat", {
-//         method: "POST",
-//         headers: { "Content-Type": "application/json" },
-//         body: JSON.stringify({ prompt, conversationHistory: history }),
-//       });
-
-//       if (!response.ok || !response.body) {
-//         throw new Error("Request failed");
-//       }
-
-//       // Parse SSE stream
-//       const reader = response.body.getReader();
-//       const decoder = new TextDecoder();
-//       let fullText = "";
-
-//       while (true) {
-//         const { done, value } = await reader.read();
-//         if (done) break;
-
-//         const chunk = decoder.decode(value, { stream: true });
-//         const lines = chunk.split("\n");
-
-//         for (const line of lines) {
-//           if (!line.startsWith("data: ")) continue;
-//           try {
-//             const event = JSON.parse(line.slice(6));
-
-//             if (event.type === "text") {
-//               fullText += event.content;
-//               setMessages((prev) =>
-//                 prev.map((m) =>
-//                   m.id === assistantMsgId
-//                     ? { ...m, content: fullText }
-//                     : m,
-//                 ),
-//               );
-//             }
-
-//             if (event.type === "done") {
-//               setMessages((prev) =>
-//                 prev.map((m) =>
-//                   m.id === assistantMsgId
-//                     ? { ...m, isStreaming: false }
-//                     : m,
-//                 ),
-//               );
-//             }
-
-//             if (event.type === "error") {
-//               throw new Error(event.message);
-//             }
-//           } catch {}
-//         }
-//       }
-//     } catch (err) {
-//       const errMsg = err instanceof Error ? err.message : "Something went wrong. Try again.";
-//       setMessages((prev) =>
-//         prev.map((m) =>
-//           m.id === assistantMsgId
-//             ? { ...m, content: errMsg, isStreaming: false }
-//             : m,
-//         ),
-//       );
-//     } finally {
-//       setIsLoading(false);
-//     }
-//   }
-
-//   function handleKeyDown(e: React.KeyboardEvent) {
-//     if (e.key === "Enter" && !e.shiftKey) {
-//       e.preventDefault();
-//       sendMessage();
-//     }
-//   }
-
-//   // Auto-resize textarea
-//   function handleInput(e: React.ChangeEvent<HTMLTextAreaElement>) {
-//     setInput(e.target.value);
-//     e.target.style.height = "auto";
-//     e.target.style.height = `${Math.min(e.target.scrollHeight, 120)}px`;
-//   }
-
-// function getActivityIcon(
-//   level: "info" | "success" | "error"
-// ) {
-//   switch (level) {
-//     case "success":
-//       return "✅";
-
-//     case "error":
-//       return "❌";
-
-//     default:
-//       return "🤖";
-//   }
-// }
-
-//   return (
-//     <div className="flex flex-col h-full ">
-//       {/* Header */}
-//       <div className="px-4 py-3 border-b border-border shrink-0">
-//         <h1 className="text-sm font-semibold text-text-primary">AI Assistant</h1>
-//         <p className="text-xs text-text-tertiary mt-0.5">
-//           Powered by Claude + Corsair — can send emails and manage your calendar
-//         </p>
-//       </div>
-
-//       {/* Messages */}
-//       <div className="flex-1 overflow-y-auto px-4 py-6 space-y-6">
-//         {messages.length === 0 && (
-//           <div className="flex flex-col items-center justify-center h-full text-center px-4">
-//             <div className="w-12 h-12 rounded-2xl bg-accent/20 flex items-center justify-center mb-4">
-//               <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="text-accent">
-//                 <path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z" strokeLinecap="round" strokeLinejoin="round" />
-//               </svg>
-//             </div>
-//             <h2 className="text-base font-semibold text-text-primary mb-1">
-//               What can I help with?
-//             </h2>
-//             <p className="text-sm text-text-secondary mb-6 max-w-sm">
-//               I can send emails, schedule meetings, search your inbox, and more.
-//             </p>
-//             <div className="grid grid-cols-2 gap-2 w-full max-w-sm">
-//               {EXAMPLE_PROMPTS.map((prompt) => (
-//                 <button
-//                   key={prompt}
-//                   onClick={() => { setInput(prompt); inputRef.current?.focus(); }}
-//                   className="px-3 py-2 rounded-xl bg-surface-1 border border-border text-xs text-text-secondary hover:text-text-primary hover:bg-surface-2 transition-colors text-left"
-//                 >
-//                   {prompt}
-//                 </button>
-//               ))}
-//             </div>
-//           </div>
-//         )}
-
-//                 {activities.length > 0 && (
-//                   <div className="mb-6 rounded-xl border border-border bg-surface-1 p-4 ">
-//                     <div className="text-xs font-semibold text-text-secondary mb-3">
-//                       Agent Activity
-//                     </div>
-
-//                     <div className="space-y-2">
-//                       {activities.map((activity) => (
-//                         <div
-//                           key={activity.id}
-//                           className="flex items-center gap-2 text-sm"
-//                         >
-//                           <span>
-//                             {getActivityIcon(activity.level)}
-//                           </span>
-
-//                           <span>
-//                             {activity.message}
-//                           </span>
-//                         </div>
-//                       ))}
-//                     </div>
-//                   </div>
-//                 )}
-
-//         {messages.map((message) => (
-//           <MessageBubble key={message.id} message={message} />
-//         ))}
-
-        
-//         <div ref={messagesEndRef} />
-
-//       </div>
-
-//       {/* Input */}
-//       <div className="px-4 pb-4 pt-2 border-t border-border shrink-0">
-//         <div className="flex items-end gap-2 bg-surface-1 border border-border rounded-2xl px-4 py-2 focus-within:border-accent/40 transition-colors">
-//           <textarea
-//             ref={inputRef}
-//             value={input}
-//             onChange={handleInput}
-//             onKeyDown={handleKeyDown}
-//             placeholder="Message your assistant..."
-//             rows={1}
-//             disabled={isLoading}
-//             className="flex-1 bg-transparent text-sm text-text-primary placeholder:text-text-tertiary outline-none resize-none max-h-[120px] py-1"
-//             style={{ minHeight: "24px" }}
-//           />
-//           <button
-//             onClick={sendMessage}
-//             disabled={!input.trim() || isLoading}
-//             className="w-8 h-8 rounded-xl bg-accent flex items-center justify-center shrink-0 disabled:opacity-40 disabled:cursor-not-allowed hover:bg-accent-hover transition-colors"
-//           >
-//             {isLoading ? (
-//               <svg className="animate-spin h-3.5 w-3.5 text-white" viewBox="0 0 24 24" fill="none">
-//                 <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-//                 <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-//               </svg>
-//             ) : (
-//               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5">
-//                 <line x1="22" y1="2" x2="11" y2="13" />
-//                 <polygon points="22,2 15,22 11,13 2,9 22,2" />
-//               </svg>
-//             )}
-//           </button>
-//         </div>
-//         <p className="text-xs text-text-tertiary mt-1.5 text-center">
-//           Enter to send · Shift+Enter for new line
-//         </p>
-//       </div>
-//     </div>
-//   );
-// }
-
 "use client";
 
 // app/(app)/chat/page.tsx
@@ -386,17 +26,14 @@ import type { ChatMessage } from "@/src/types";
 
 type StepStatus = "pending" | "success" | "error" | "info";
 
-// One row in the agent activity timeline
 interface Step {
   id: string;
-  // plain step (no tool) OR tool step (has toolName)
   kind: "plain" | "tool";
-  message: string;           // raw message from SSE
-  label: string;             // human-readable label shown in UI
-  desc: string;              // sub-description shown below label
+  message: string;
+  label: string;
+  desc: string;
   status: StepStatus;
   timestamp: number;
-  // only for tool steps
   toolName?: string;
   toolArgs?: Record<string, unknown>;
   toolResult?: unknown;
@@ -413,7 +50,6 @@ interface ExtendedMsg extends ChatMessage {
   steps?: Step[];
 }
 
-// Shape of data field in every SSE agent_status event
 interface SSEData {
   level?: "info" | "success" | "error";
   message: string;
@@ -426,56 +62,55 @@ interface SSEData {
 // ─── Tool label + description maps ───────────────────────────────────────────
 
 const TOOL_LABEL: Record<string, string> = {
-  gmail_messages_send:       "Sending email",
-  gmail_messages_list:       "Searching inbox",
-  gmail_messages_get:        "Reading message",
-  gmail_messages_modify:     "Updating labels",
-  gmail_messages_trash:      "Moving to trash",
-  gmail_messages_untrash:    "Restoring from trash",
+  gmail_messages_send:        "Sending email",
+  gmail_messages_list:        "Searching inbox",
+  gmail_messages_get:         "Reading message",
+  gmail_messages_modify:      "Updating labels",
+  gmail_messages_trash:       "Moving to trash",
+  gmail_messages_untrash:     "Restoring from trash",
   gmail_messages_batch_modify:"Bulk updating messages",
-  gmail_threads_list:        "Listing threads",
-  gmail_threads_get:         "Reading thread",
-  gmail_threads_modify:      "Updating thread",
-  gmail_threads_trash:       "Trashing thread",
-  gmail_drafts_create:       "Creating draft",
-  gmail_drafts_list:         "Listing drafts",
-  gmail_drafts_send:         "Sending draft",
-  gmail_drafts_delete:       "Deleting draft",
-  gmail_labels_list:         "Fetching labels",
-  gmail_labels_create:       "Creating label",
-  gmail_db_messages_search:  "Searching local cache",
-  gmail_db_threads_search:   "Searching threads cache",
-  gmail_db_drafts_search:    "Searching drafts cache",
-  gmail_db_labels_search:    "Searching labels cache",
-  calendar_events_list:      "Fetching calendar events",
-  calendar_events_get:       "Reading event",
-  calendar_events_create:    "Creating calendar event",
-  calendar_events_update:    "Updating event",
-  calendar_events_delete:    "Deleting event",
-  calendar_get_availability: "Checking availability",
-  calendar_db_events_search: "Searching events cache",
+  gmail_threads_list:         "Listing threads",
+  gmail_threads_get:          "Reading thread",
+  gmail_threads_modify:       "Updating thread",
+  gmail_threads_trash:        "Trashing thread",
+  gmail_drafts_create:        "Creating draft",
+  gmail_drafts_list:          "Listing drafts",
+  gmail_drafts_send:          "Sending draft",
+  gmail_drafts_delete:        "Deleting draft",
+  gmail_labels_list:          "Fetching labels",
+  gmail_labels_create:        "Creating label",
+  gmail_db_messages_search:   "Searching local cache",
+  gmail_db_threads_search:    "Searching threads cache",
+  gmail_db_drafts_search:     "Searching drafts cache",
+  gmail_db_labels_search:     "Searching labels cache",
+  calendar_events_list:       "Fetching calendar events",
+  calendar_events_get:        "Reading event",
+  calendar_events_create:     "Creating calendar event",
+  calendar_events_update:     "Updating event",
+  calendar_events_delete:     "Deleting event",
+  calendar_get_availability:  "Checking availability",
+  calendar_db_events_search:  "Searching events cache",
   calendar_db_calendars_search:"Searching calendars cache",
 };
 
 const TOOL_DESC: Record<string, string> = {
-  gmail_messages_send:       "Using Gmail API to send the message...",
-  gmail_messages_list:       "Querying Gmail inbox...",
-  gmail_messages_get:        "Fetching full message body...",
-  gmail_messages_modify:     "Applying label changes...",
-  gmail_messages_trash:      "Moving message to trash...",
+  gmail_messages_send:        "Using Gmail API to send the message...",
+  gmail_messages_list:        "Querying Gmail inbox...",
+  gmail_messages_get:         "Fetching full message body...",
+  gmail_messages_modify:      "Applying label changes...",
+  gmail_messages_trash:       "Moving message to trash...",
   gmail_messages_batch_modify:"Applying bulk label operation...",
-  gmail_db_messages_search:  "Querying local Gmail cache...",
-  gmail_db_threads_search:   "Querying local threads cache...",
-  gmail_db_labels_search:    "Querying local labels cache...",
-  calendar_events_list:      "Fetching events from Calendar API...",
-  calendar_events_create:    "Creating event via Calendar API...",
-  calendar_events_update:    "Patching event via Calendar API...",
-  calendar_events_delete:    "Deleting event via Calendar API...",
-  calendar_get_availability: "Checking free/busy slots...",
-  calendar_db_events_search: "Querying local events cache...",
+  gmail_db_messages_search:   "Querying local Gmail cache...",
+  gmail_db_threads_search:    "Querying local threads cache...",
+  gmail_db_labels_search:     "Querying local labels cache...",
+  calendar_events_list:       "Fetching events from Calendar API...",
+  calendar_events_create:     "Creating event via Calendar API...",
+  calendar_events_update:     "Patching event via Calendar API...",
+  calendar_events_delete:     "Deleting event via Calendar API...",
+  calendar_get_availability:  "Checking free/busy slots...",
+  calendar_db_events_search:  "Querying local events cache...",
 };
 
-// Plain-message label overrides
 const PLAIN_LABEL: Record<string, { label: string; desc: string }> = {
   "Understanding request...":    { label: "Understanding request",   desc: "Analysing what you want to do..." },
   "Searching available tools...":{ label: "Planning",                desc: "Selecting the right tools for the task..." },
@@ -605,7 +240,6 @@ const Ico = {
       <path d="M4.5 7L6.5 9L9.5 5" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round"/>
     </svg>
   ),
-  // Step icons
   StepQ: () => (
     <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
       <circle cx="6" cy="6" r="4.5" stroke="currentColor" strokeWidth="1.1"/>
@@ -642,7 +276,6 @@ const Ico = {
       <path d="M8.5 1.5L10.5 3.5L4 10L1.5 10.5L2 8L8.5 1.5Z" stroke="currentColor" strokeWidth="1.1" strokeLinecap="round" strokeLinejoin="round"/>
     </svg>
   ),
-  // Topbar icons
   History: () => (
     <svg width="15" height="15" viewBox="0 0 15 15" fill="none">
       <circle cx="7.5" cy="7.5" r="6" stroke="currentColor" strokeWidth="1.3"/>
@@ -662,7 +295,6 @@ const Ico = {
       <circle cx="11.5" cy="7.5" r="1.2" fill="currentColor"/>
     </svg>
   ),
-  // Meta panel
   GmailColor: () => (
     <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
       <rect x="2" y="4" width="20" height="16" rx="2" stroke="#EA4335" strokeWidth="1.5"/>
@@ -696,52 +328,42 @@ function stepIcon(s: Step) {
   return <Ico.StepSearch />;
 }
 
-// ─── Step node (dot/circle on the left of each row) ──────────────────────────
+// ─── Step components ──────────────────────────────────────────────────────────
 
 function StepDot({ s }: { s: Step }) {
   if (s.status === "success") {
     return (
-      <span className="flex-shrink-0 w-5 h-5 rounded-full flex items-center justify-center"
-        style={{ background: "rgba(34,197,94,0.14)" }}>
+      <span className="flex-shrink-0 w-5 h-5 rounded-full flex items-center justify-center bg-green-500/10">
         <Ico.Check />
       </span>
     );
   }
   if (s.status === "error") {
     return (
-      <span className="flex-shrink-0 w-5 h-5 rounded-full flex items-center justify-center"
-        style={{ background: "rgba(239,68,68,0.14)" }}>
+      <span className="flex-shrink-0 w-5 h-5 rounded-full flex items-center justify-center bg-red-500/10">
         <Ico.X />
       </span>
     );
   }
   if (s.status === "pending") {
     return (
-      <span className="flex-shrink-0 w-5 h-5 rounded-full border flex items-center justify-center"
-        style={{ borderColor: "#e75b85" }}>
-        <span className="w-2 h-2 rounded-full animate-pulse" style={{ background: "#e75b85" }}/>
+      <span className="flex-shrink-0 w-5 h-5 rounded-full border flex items-center justify-center border-[var(--accent)]">
+        <span className="w-2 h-2 rounded-full animate-pulse bg-[var(--accent)]" />
       </span>
     );
   }
-  // info / plain
   return (
-    <span className="flex-shrink-0 w-5 h-5 rounded-full flex items-center justify-center"
-      style={{ background: "rgba(255,255,255,0.07)", color: "#888" }}>
+    <span className="flex-shrink-0 w-5 h-5 rounded-full flex items-center justify-center bg-[var(--surface-2)] text-[var(--text-tertiary)]">
       {stepIcon(s)}
     </span>
   );
 }
 
-// ─── Tool detail card (expanded inline under tool step) ───────────────────────
-// Shown for tool steps. Displays args preview + result summary.
-
 function ToolCard({ s }: { s: Step }) {
-  // Build rows from toolArgs + toolResult
   const rows: [string, string][] = [];
   const args = s.toolArgs ?? {};
-  const res  = (s.toolResult ?? {}) as Record<string, unknown>;
+  const res = (s.toolResult ?? {}) as Record<string, unknown>;
 
-  // Common arg fields
   if (args.to)            rows.push(["To",      String(args.to)]);
   if (args.subject)       rows.push(["Subject", String(args.subject)]);
   if (args.summary)       rows.push(["Title",   String(args.summary)]);
@@ -750,11 +372,10 @@ function ToolCard({ s }: { s: Step }) {
   if (args.q)             rows.push(["Query",   String(args.q)]);
   if (args.from)          rows.push(["From",    String(args.from)]);
 
-  // Result fields
   if (s.status === "success") {
     const label = s.toolName?.startsWith("calendar") ? "Event created" : "Completed";
     rows.push(["Status", label]);
-    if (res.id) rows.push([s.toolName?.startsWith("calendar") ? "Event ID" : "Message ID", String(res.id)]);
+    if (res.id)       rows.push([s.toolName?.startsWith("calendar") ? "Event ID" : "Message ID", String(res.id)]);
     if (res.threadId) rows.push(["Thread ID", String(res.threadId)]);
   }
   if (s.status === "error") {
@@ -763,37 +384,29 @@ function ToolCard({ s }: { s: Step }) {
   }
 
   return (
-    <div className="mt-2.5 rounded-xl overflow-hidden text-xs"
-      style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.09)" }}>
-
-      {/* header row */}
+    <div className="mt-2.5 rounded-xl overflow-hidden text-xs bg-[var(--surface-1)] border border-[var(--border)]">
       <div className="flex items-center justify-between px-3.5 py-2.5">
         <div className="flex items-center gap-2">
-          <span style={{ color: "#777" }}>Tool call</span>
-          <code style={{ color: "#f0f0f0", fontWeight: 600 }}>{s.toolName}</code>
+          <span className="text-[var(--text-tertiary)]">Tool call</span>
+          <code className="text-[var(--text-primary)] font-semibold">{s.toolName}</code>
         </div>
-        {s.status === "pending" && (
-          <span className="px-2.5 py-0.5 rounded-full text-[11px] font-medium animate-pulse"
-            style={{ background: "rgba(231,91,133,.15)", color: "#e75b85" }}>Running</span>
-        )}
-        {s.status === "success" && (
-          <span className="px-2.5 py-0.5 rounded-full text-[11px] font-medium"
-            style={{ background: "rgba(34,197,94,.12)", color: "#22c55e" }}>Success</span>
-        )}
-        {s.status === "error" && (
-          <span className="px-2.5 py-0.5 rounded-full text-[11px] font-medium"
-            style={{ background: "rgba(239,68,68,.12)", color: "#ef4444" }}>Failed</span>
-        )}
+        <span className={`px-2.5 py-0.5 rounded-full text-[11px] font-medium ${
+          s.status === "pending"
+            ? "animate-pulse text-[var(--accent)] bg-[var(--accent)]/10"
+            : s.status === "success"
+            ? "text-green-600 dark:text-green-400 bg-green-500/10"
+            : "text-red-600 dark:text-red-400 bg-red-500/10"
+        }`}>
+          {s.status === "pending" ? "Running" : s.status === "success" ? "Success" : "Failed"}
+        </span>
       </div>
-
-      {/* data rows */}
       {rows.length > 0 && (
-        <div style={{ borderTop: "1px solid rgba(255,255,255,0.06)" }}>
+        <div className="border-t border-[var(--border)]">
           {rows.map(([k, v]) => (
-            <div key={k} className="px-3.5 py-1.5 grid gap-2"
-              style={{ gridTemplateColumns: "90px 1fr", borderBottom: "1px solid rgba(255,255,255,.04)" }}>
-              <span style={{ color: "#777" }}>{k}</span>
-              <span className="truncate" style={{ color: "#f0f0f0" }}>{v}</span>
+            <div key={k} className="px-3.5 py-1.5 grid gap-2 border-b border-[var(--border)]"
+              style={{ gridTemplateColumns: "90px 1fr" }}>
+              <span className="text-[var(--text-tertiary)]">{k}</span>
+              <span className="truncate text-[var(--text-primary)]">{v}</span>
             </div>
           ))}
         </div>
@@ -810,9 +423,10 @@ function AgentActivity({ steps }: { steps: Step[] }) {
 
   return (
     <div className="mt-3">
-      <button onClick={() => setOpen(v => !v)}
-        className="flex items-center gap-1.5 mb-3 select-none"
-        style={{ color: "#777", fontSize: "12px" }}>
+      <button
+        onClick={() => setOpen(v => !v)}
+        className="flex items-center gap-1.5 mb-3 select-none text-[var(--text-tertiary)] text-xs"
+      >
         <Ico.ChevRight open={open} />
         Agent activity
       </button>
@@ -820,8 +434,10 @@ function AgentActivity({ steps }: { steps: Step[] }) {
       {open && (
         <div className="relative" style={{ marginLeft: "2px" }}>
           {/* vertical connector */}
-          <div className="absolute top-0 bottom-0 w-px"
-            style={{ left: "9px", background: "rgba(255,255,255,.1)" }}/>
+          <div
+            className="absolute top-0 bottom-0 w-px"
+            style={{ left: "9px", background: "var(--border)" }}
+          />
 
           <div className="space-y-3">
             {steps.map(s => (
@@ -830,22 +446,19 @@ function AgentActivity({ steps }: { steps: Step[] }) {
                   <StepDot s={s} />
                 </div>
                 <div className="flex-1 min-w-0">
-                  {/* label + timestamp */}
                   <div className="flex items-center justify-between gap-4">
-                    <span className="text-xs font-medium" style={{ color: "#f0f0f0" }}>
+                    <span className="text-xs font-medium text-[var(--text-primary)]">
                       {s.label}
                     </span>
-                    <span className="shrink-0 tabular-nums" style={{ fontSize: "11px", color: "#777" }}>
+                    <span className="shrink-0 tabular-nums text-[11px] text-[var(--text-tertiary)]">
                       {fmtTime(new Date(s.timestamp))}
                     </span>
                   </div>
-                  {/* sub-description */}
                   {s.desc && (
-                    <p className="mt-0.5" style={{ fontSize: "11px", color: "#777", lineHeight: 1.5 }}>
+                    <p className="mt-0.5 text-[11px] text-[var(--text-tertiary)] leading-relaxed">
                       {s.desc}
                     </p>
                   )}
-                  {/* tool card — only for tool steps */}
                   {s.kind === "tool" && <ToolCard s={s} />}
                 </div>
               </div>
@@ -858,7 +471,6 @@ function AgentActivity({ steps }: { steps: Step[] }) {
 }
 
 // ─── Meta sidebar ─────────────────────────────────────────────────────────────
-// Shows details of the last completed tool action.
 
 interface MetaData {
   toolName: string;
@@ -875,143 +487,93 @@ function MetaPanel({ meta, onClose }: { meta: MetaData; onClose: () => void }) {
   const a = meta.toolArgs ?? {};
 
   const detailRows: [string, string][] = [];
-  if (a.to)      detailRows.push(["To",      String(a.to)]);
+  if (a.to) detailRows.push(["To", String(a.to)]);
   if (a.subject) detailRows.push(["Subject", String(a.subject)]);
-  if (a.summary) detailRows.push(["Title",   String(a.summary)]);
+  if (a.summary) detailRows.push(["Title", String(a.summary)]);
   if (a.startDateTime) detailRows.push(["Start", String(a.startDateTime)]);
-  if (a.endDateTime)   detailRows.push(["End",   String(a.endDateTime)]);
-  if (r.id)      detailRows.push([isCalendar ? "Event ID" : "Message ID", String(r.id)]);
+  if (a.endDateTime) detailRows.push(["End", String(a.endDateTime)]);
+  if (r.id) detailRows.push([isCalendar ? "Event ID" : "Message ID", String(r.id)]);
   if (r.threadId) detailRows.push(["Thread ID", String(r.threadId)]);
-  if (isGmail)   detailRows.push(["Provider", "Gmail"]);
+  if (isGmail) detailRows.push(["Provider", "Gmail"]);
   detailRows.push(["Status", meta.status === "success" ? (isCalendar ? "Created" : "Sent") : "Failed"]);
 
-  // Email preview fields
   const previewFields: Array<{ label: string; value: string }> = [];
-  if (a.to)      previewFields.push({ label: "To:",      value: String(a.to) });
+  if (a.to) previewFields.push({ label: "To:", value: String(a.to) });
   if (a.subject) previewFields.push({ label: "Subject:", value: String(a.subject) });
-  if (a.body)    previewFields.push({ label: "Body",     value: String(a.body).slice(0, 300) });
-  if (a.summary) previewFields.push({ label: "Title:",   value: String(a.summary) });
+  if (a.body) previewFields.push({ label: "Body", value: String(a.body).slice(0, 300) });
+  if (a.summary) previewFields.push({ label: "Title:", value: String(a.summary) });
 
   return (
-    <div className="w-[300px] shrink-0 flex flex-col h-full"
-      style={{ borderLeft: "1px solid rgba(255,255,255,.08)", background: "#191919" }}>
-
-      {/* header */}
-      <div className="flex items-center justify-between px-5 py-4 shrink-0"
-        style={{ borderBottom: "1px solid rgba(255,255,255,.08)" }}>
-        <span className="text-sm font-semibold" style={{ color: "#f0f0f0" }}>Last action</span>
-        <button onClick={onClose}
-          className="w-6 h-6 flex items-center justify-center rounded-lg"
-          style={{ color: "#777" }}>
+    <div className="w-[300px] shrink-0 flex flex-col h-full bg-[var(--surface-0)] border-l border-[var(--border)] overflow-hidden">
+      {/* Header */}
+      <div className="flex items-center justify-between px-5 py-4 shrink-0 border-b border-[var(--border)]">
+        <span className="text-sm font-semibold text-[var(--text-primary)]">Last action</span>
+        <button onClick={onClose} className="w-6 h-6 flex items-center justify-center rounded-lg text-[var(--text-tertiary)] hover:bg-[var(--surface-2)]">
           <Ico.Close />
         </button>
       </div>
 
-      <div className="flex-1 overflow-y-auto px-5 py-4 space-y-5">
-
-        {/* tool name + status badge */}
+      {/* Main Content: Overflow-y only */}
+      <div className="flex-1 overflow-y-auto px-5 py-4 space-y-6 min-w-0">
+        
+        {/* Badge Area */}
         <div>
-          <div className="flex items-center gap-2.5 mb-2">
-            <div className="w-7 h-7 rounded-lg flex items-center justify-center shrink-0"
-              style={{ background: "rgba(231,91,133,.15)" }}>
+          <div className="flex items-center gap-2.5 mb-2.5 overflow-hidden">
+            <div className="w-7 h-7 rounded-lg flex items-center justify-center shrink-0 bg-[var(--surface-2)]">
               {isGmail ? <Ico.GmailColor /> : isCalendar ? <Ico.CalColor /> : <Ico.StepTool />}
             </div>
-            <span className="text-sm font-mono font-semibold" style={{ color: "#f0f0f0" }}>
+            {/* Added min-w-0 and break-all to prevent overflow */}
+            <span className="text-sm font-mono font-bold text-[var(--text-primary)] truncate">
               {meta.toolName}
             </span>
           </div>
-          <div className="flex items-center gap-2">
-            <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full font-semibold"
-              style={{
-                fontSize: "11px",
-                background: meta.status === "success" ? "rgba(34,197,94,.1)" : "rgba(239,68,68,.1)",
-                color: meta.status === "success" ? "#22c55e" : "#ef4444",
-              }}>
-              <span className="w-1.5 h-1.5 rounded-full inline-block"
-                style={{ background: meta.status === "success" ? "#22c55e" : "#ef4444" }}/>
-              {meta.status === "success" ? "Success" : "Failed"}
-            </span>
-            <span style={{ fontSize: "11px", color: "#777" }}>{meta.timestamp}</span>
-          </div>
+          {/* ... status badge ... */}
         </div>
 
-        {/* detail rows */}
-        {detailRows.length > 0 && (
-          <div>
-            <p className="text-xs font-semibold mb-3" style={{ color: "#f0f0f0" }}>Details</p>
-            <div className="space-y-2.5">
-              {detailRows.map(([k, v]) => (
-                <div key={k} className="flex items-start justify-between gap-3">
-                  <span className="text-xs shrink-0" style={{ color: "#777" }}>{k}</span>
-                  <span className="text-xs text-right font-medium break-all"
-                    style={{ color: "#f0f0f0", maxWidth: "58%" }}>
-                    {k === "Provider" ? (
-                      <span className="inline-flex items-center gap-1.5">
-                        <Ico.GmailColor /> {v}
-                      </span>
-                    ) : k === "Status" ? (
-                      <span className="inline-flex items-center gap-1">
-                        <span className="w-1.5 h-1.5 rounded-full inline-block"
-                          style={{ background: meta.status === "success" ? "#22c55e" : "#ef4444" }}/>
-                        {v}
-                      </span>
-                    ) : v}
-                  </span>
-                </div>
-              ))}
+        {/* Details Section */}
+        <div className="space-y-3">
+          <p className="text-xs font-bold uppercase tracking-wide text-[var(--text-tertiary)]">Details</p>
+          {detailRows.map(([k, v]) => (
+            <div key={k} className="flex gap-4 items-start">
+              <span className="text-xs text-[var(--text-tertiary)] w-20 shrink-0">{k}</span>
+              {/* Added break-all to handle email addresses/IDs */}
+              <span className="text-xs font-medium text-[var(--text-primary)] break-all flex-1">
+                {k === "Provider" ? <span className="inline-flex items-center gap-1.5"><Ico.GmailColor /> {v}</span> : v}
+              </span>
             </div>
-          </div>
-        )}
+          ))}
+        </div>
 
-        {/* email / event preview */}
-        {previewFields.length > 0 && (
-          <div>
-            <p className="text-xs font-semibold mb-3" style={{ color: "#f0f0f0" }}>
-              {isGmail ? "Email preview" : "Event preview"}
-            </p>
-            <div className="rounded-xl p-3.5 space-y-2"
-              style={{ border: "1px solid rgba(255,255,255,.08)", background: "rgba(255,255,255,.025)" }}>
-              {previewFields.map(({ label, value }) => (
-                <div key={label}>
-                  {label === "Body" ? (
-                    <p className="text-xs leading-relaxed whitespace-pre-line" style={{ color: "#bbb" }}>{value}</p>
-                  ) : (
-                    <div className="flex gap-2">
-                      <span className="text-xs w-16 shrink-0" style={{ color: "#777" }}>{label}</span>
-                      <span className="text-xs" style={{ color: "#f0f0f0" }}>{value}</span>
-                    </div>
-                  )}
-                </div>
-              ))}
-            </div>
+        {/* Preview Section */}
+        <div className="space-y-3">
+          <p className="text-xs font-bold uppercase tracking-wide text-[var(--text-tertiary)]">Email preview</p>
+          <div className="rounded-xl p-3.5 bg-[var(--surface-1)] border border-[var(--border)] space-y-3 min-w-0">
+            {previewFields.map(({ label, value }) => (
+              <div key={label} className="text-xs flex gap-2">
+                <span className="font-semibold text-[var(--text-primary)] shrink-0 w-16">{label}</span>
+                {/* Wrap text properly without breaking layout */}
+                <span className="text-[var(--text-secondary)] break-words break-all">{value}</span>
+              </div>
+            ))}
           </div>
-        )}
-      </div>
-
-      <div className="px-5 py-3 shrink-0"
-        style={{ borderTop: "1px solid rgba(255,255,255,.08)" }}>
-        <button className="w-full flex items-center justify-center gap-2 py-2 rounded-xl text-xs"
-          style={{ border: "1px solid rgba(255,255,255,.1)", color: "#777" }}>
-          <Ico.CalSmall /> View full history
-        </button>
+        </div>
       </div>
     </div>
   );
 }
-
 // ─── Example prompts ──────────────────────────────────────────────────────────
 
 const EXAMPLES = [
-  { label: "Send email to Alex", type: "email" },
-  { label: "What's on my calendar today?", type: "cal" },
-  { label: "Find unread emails", type: "search" },
-  { label: "Schedule a meeting with team", type: "cal" },
+  { label: "Send email to Alex",          type: "email"  },
+  { label: "What's on my calendar today?", type: "cal"   },
+  { label: "Find unread emails",           type: "search" },
+  { label: "Schedule a meeting with team", type: "cal"   },
 ];
 
 function promptIcon(type: string) {
-  const c = "#e75b85";
+  const c = "#eb2560";
   if (type === "email")  return <Ico.Mail c={c} />;
-  if (type === "cal")    return <Ico.Cal c={c} />;
+  if (type === "cal")    return <Ico.Cal  c={c} />;
   if (type === "search") return <Ico.Search c={c} />;
   return <Ico.Mail c={c} />;
 }
@@ -1021,25 +583,34 @@ function promptIcon(type: string) {
 function Empty({ onPrompt }: { onPrompt: (p: string) => void }) {
   return (
     <div className="flex flex-col items-center justify-center h-full px-6 text-center select-none">
-      <div className="w-[72px] h-[72px] rounded-2xl flex items-center justify-center mb-7"
-        style={{ background: "rgba(255,255,255,.04)", border: "1px solid rgba(255,255,255,.1)" }}>
+      <div
+        className="w-[72px] h-[72px] rounded-2xl flex items-center justify-center mb-7 bg-[var(--surface-1)]"
+        style={{ border: "1px solid var(--border)" }}
+      >
         <svg width="30" height="30" viewBox="0 0 30 30" fill="none">
-          <path d="M26 20.5A2.5 2.5 0 0123.5 23H8.5L3 28.5V6A2.5 2.5 0 015.5 3.5H23.5A2.5 2.5 0 0126 6V20.5Z"
-            stroke="#e75b85" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"/>
-          <circle cx="10.5" cy="13" r="1.1" fill="#e75b85"/>
-          <circle cx="15"   cy="13" r="1.1" fill="#e75b85"/>
-          <circle cx="19.5" cy="13" r="1.1" fill="#e75b85"/>
+          <path
+            d="M26 20.5A2.5 2.5 0 0123.5 23H8.5L3 28.5V6A2.5 2.5 0 015.5 3.5H23.5A2.5 2.5 0 0126 6V20.5Z"
+            stroke="#eb2560" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"
+          />
+          <circle cx="10.5" cy="13" r="1.1" fill="#eb2560"/>
+          <circle cx="15"   cy="13" r="1.1" fill="#eb2560"/>
+          <circle cx="19.5" cy="13" r="1.1" fill="#eb2560"/>
         </svg>
       </div>
-      <h2 className="text-base font-semibold mb-1.5" style={{ color: "#f0f0f0" }}>Start a conversation</h2>
-      <p className="text-sm mb-7 max-w-xs leading-relaxed" style={{ color: "#777" }}>
+      <h2 className="text-base font-semibold mb-1.5 text-[var(--text-primary)]">
+        Start a conversation
+      </h2>
+      <p className="text-sm mb-7 max-w-xs leading-relaxed text-[var(--text-tertiary)]">
         Ask me to send emails, check your calendar,<br/>search messages, and more.
       </p>
       <div className="grid grid-cols-2 gap-2 w-full max-w-sm">
         {EXAMPLES.map(({ label, type }) => (
-          <button key={label} onClick={() => onPrompt(label)}
-            className="flex items-center gap-2.5 px-3.5 py-3 rounded-xl text-sm text-left"
-            style={{ background: "rgba(255,255,255,.03)", border: "1px solid rgba(255,255,255,.08)", color: "#777" }}>
+          <button
+            key={label}
+            onClick={() => onPrompt(label)}
+            className="flex items-center gap-2.5 px-3.5 py-3 rounded-xl text-sm text-left bg-[var(--surface-1)] text-[var(--text-secondary)] hover:bg-[var(--surface-2)] transition-colors"
+            style={{ border: "1px solid var(--border)" }}
+          >
             {promptIcon(type)}
             <span>{label}</span>
           </button>
@@ -1054,14 +625,16 @@ function Empty({ onPrompt }: { onPrompt: (p: string) => void }) {
 function UserMsg({ m }: { m: ExtendedMsg }) {
   return (
     <div className="flex items-start gap-3 px-6 py-4">
-      <div className="w-8 h-8 rounded-full flex items-center justify-center shrink-0 mt-0.5"
-        style={{ background: "rgba(255,255,255,.06)", border: "1px solid rgba(255,255,255,.1)", color: "#777" }}>
+      <div
+        className="w-8 h-8 rounded-full flex items-center justify-center shrink-0 mt-0.5 bg-[var(--surface-2)] text-[var(--text-tertiary)]"
+        style={{ border: "1px solid var(--border)" }}
+      >
         <Ico.User />
       </div>
       <div className="flex-1 min-w-0">
-        <p className="text-sm leading-relaxed" style={{ color: "#f0f0f0" }}>{m.content}</p>
+        <p className="text-sm leading-relaxed text-[var(--text-primary)]">{m.content}</p>
       </div>
-      <span className="shrink-0 mt-1 tabular-nums" style={{ fontSize: "11px", color: "#777" }}>
+      <span className="shrink-0 mt-1 tabular-nums text-[11px] text-[var(--text-tertiary)]">
         {fmtTime(new Date(m.createdAt))}
       </span>
     </div>
@@ -1071,14 +644,20 @@ function UserMsg({ m }: { m: ExtendedMsg }) {
 function AIMsg({ m }: { m: ExtendedMsg }) {
   return (
     <div className="flex items-start gap-3 px-6 py-4">
-      <div className="w-8 h-8 rounded-full flex items-center justify-center shrink-0 mt-0.5"
-        style={{ background: "rgba(231,91,133,.15)", border: "1px solid rgba(231,91,133,.25)", color: "#e75b85" }}>
+      <div
+        className="w-8 h-8 rounded-full flex items-center justify-center shrink-0 mt-0.5"
+        style={{
+          background: "rgba(231,91,133,.12)",
+          border:     "1px solid rgba(231,91,133,.22)",
+          color:      "#eb2560",
+        }}
+      >
         <Ico.AI />
       </div>
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2 mb-1">
-          <span className="text-xs font-semibold" style={{ color: "#f0f0f0" }}>Superhuman AI</span>
-          <span className="tabular-nums" style={{ fontSize: "11px", color: "#777" }}>
+          <span className="text-xs font-semibold text-[var(--text-primary)]">Superhuman AI</span>
+          <span className="tabular-nums text-[11px] text-[var(--text-tertiary)]">
             {fmtTime(new Date(m.createdAt))}
           </span>
         </div>
@@ -1086,27 +665,31 @@ function AIMsg({ m }: { m: ExtendedMsg }) {
         {/* streaming dots when no content yet */}
         {m.isStreaming && !m.content && !(m.steps?.length) && (
           <div className="flex gap-0.5 mt-1">
-            {[0,1,2].map(i => (
-              <span key={i} className="w-1 h-1 rounded-full animate-bounce"
-                style={{ background: "#777", animationDelay: `${i*150}ms` }}/>
+            {[0, 1, 2].map(i => (
+              <span
+                key={i}
+                className="w-1 h-1 rounded-full animate-bounce bg-[var(--text-tertiary)]"
+                style={{ animationDelay: `${i * 150}ms` }}
+              />
             ))}
           </div>
         )}
 
-        {/* agent activity (steps) */}
-        {m.steps && m.steps.length > 0 && (
-          <AgentActivity steps={m.steps} />
-        )}
+        {/* agent activity */}
+        {m.steps && m.steps.length > 0 && <AgentActivity steps={m.steps} />}
 
         {/* final text */}
         {m.content && (
-          <p className="text-sm leading-relaxed mt-2" style={{ color: "#f0f0f0" }}>
+          <p className="text-sm leading-relaxed mt-2 text-[var(--text-primary)]">
             {m.content}
             {m.isStreaming && (
               <span className="inline-flex gap-0.5 ml-1.5 align-middle">
-                {[0,1,2].map(i => (
-                  <span key={i} className="w-1 h-1 rounded-full animate-bounce"
-                    style={{ background: "#777", animationDelay: `${i*150}ms` }}/>
+                {[0, 1, 2].map(i => (
+                  <span
+                    key={i}
+                    className="w-1 h-1 rounded-full animate-bounce bg-[var(--text-tertiary)]"
+                    style={{ animationDelay: `${i * 150}ms` }}
+                  />
                 ))}
               </span>
             )}
@@ -1117,28 +700,37 @@ function AIMsg({ m }: { m: ExtendedMsg }) {
         {m.actions && m.actions.length > 0 && (
           <div className="flex flex-wrap gap-2 mt-3">
             {m.actions.map((a, i) => (
-              <span key={i} className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs"
-                style={{ background: "rgba(231,91,133,.1)", border: "1px solid rgba(231,91,133,.2)", color: "#e75b85" }}>
-                {a.type === "email_sent"   && <Ico.Mail c="#e75b85" />}
-                {a.type === "event_created" && <Ico.Cal  c="#e75b85" />}
+              <span
+                key={i}
+                className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs"
+                style={{
+                  background: "rgba(231,91,133,.1)",
+                  border:     "1px solid rgba(231,91,133,.2)",
+                  color:      "#eb2560",
+                }}
+              >
+                {a.type === "email_sent"    && <Ico.Mail c="#eb2560" />}
+                {a.type === "event_created" && <Ico.Cal  c="#eb2560" />}
                 {a.summary}
               </span>
             ))}
           </div>
         )}
 
-        {/* feedback row (visible on hover) */}
+        {/* feedback row */}
         {!m.isStreaming && m.content && (
           <div className="flex items-center gap-0.5 mt-3 opacity-0 group-hover:opacity-100 transition-opacity">
             {[
-              { el: <Ico.Copy />,      t: "Copy"      },
-              { el: <Ico.ThumbUp />,   t: "Good"      },
-              { el: <Ico.ThumbDown />, t: "Bad"       },
-              { el: <Ico.Refresh />,   t: "Regenerate"},
+              { el: <Ico.Copy />,      t: "Copy"       },
+              { el: <Ico.ThumbUp />,   t: "Good"       },
+              { el: <Ico.ThumbDown />, t: "Bad"        },
+              { el: <Ico.Refresh />,   t: "Regenerate" },
             ].map(({ el, t }) => (
-              <button key={t} title={t}
-                className="w-7 h-7 rounded-lg flex items-center justify-center transition-colors"
-                style={{ color: "#777" }}>
+              <button
+                key={t}
+                title={t}
+                className="w-7 h-7 rounded-lg flex items-center justify-center text-[var(--text-tertiary)] hover:text-[var(--text-secondary)] hover:bg-[var(--surface-2)] transition-colors"
+              >
                 {el}
               </button>
             ))}
@@ -1152,11 +744,11 @@ function AIMsg({ m }: { m: ExtendedMsg }) {
 // ─── Main page ────────────────────────────────────────────────────────────────
 
 export default function ChatPage() {
-  const [messages,  setMessages]  = useState<ExtendedMsg[]>([]);
-  const [input,     setInput]     = useState("");
-  const [loading,   setLoading]   = useState(false);
-  const [meta,      setMeta]      = useState<MetaData | null>(null);
-  const [sseOk,     setSseOk]     = useState(false);
+  const [messages, setMessages] = useState<ExtendedMsg[]>([]);
+  const [input,    setInput]    = useState("");
+  const [loading,  setLoading]  = useState(false);
+  const [meta,     setMeta]     = useState<MetaData | null>(null);
+  const [sseOk,    setSseOk]    = useState(false);
 
   const bottomRef    = useRef<HTMLDivElement>(null);
   const inputRef     = useRef<HTMLTextAreaElement>(null);
@@ -1168,8 +760,6 @@ export default function ChatPage() {
   }, [messages]);
 
   // ─── SSE connection ────────────────────────────────────────────────────────
-  // Connects to /api/events/stream which subscribes using getTenantId(session.user.id)
-  // = "user_<dbUUID>" — matching what emitToUser(corsairTenantId, ...) fires.
   useEffect(() => {
     let es: EventSource;
     let retry: ReturnType<typeof setTimeout>;
@@ -1178,20 +768,15 @@ export default function ChatPage() {
       es = new EventSource("/api/events/stream");
 
       es.addEventListener("connected", () => {
-        // console.log("[SSE] ✅ connected");
         setSseOk(true);
       });
 
-      // ── Handle agent_status events ──────────────────────────────────────
-      // Shape: { level?, message, toolName?, toolStatus?, toolArgs?, toolResult? }
       es.addEventListener("agent_status", (ev: MessageEvent) => {
         const data = JSON.parse(ev.data as string) as SSEData;
-        // console.log("[SSE] agent_status →", data);
 
         const msgId = currentIdRef.current;
         if (!msgId) return;
 
-        // Resolve this SSE event into a Step
         const resolved = resolveStep(data);
 
         setMessages(prev => prev.map(m => {
@@ -1200,10 +785,8 @@ export default function ChatPage() {
 
           if (data.toolName && data.toolStatus) {
             if (data.toolStatus === "pending") {
-              // New tool step — append
               steps.push({ id: nanoid(), timestamp: Date.now(), ...resolved });
             } else {
-              // Update the most recent pending step with same toolName
               const idx = [...steps].reverse().findIndex(
                 s => s.toolName === data.toolName && s.status === "pending"
               );
@@ -1216,10 +799,9 @@ export default function ChatPage() {
                   desc:       resolved.desc,
                   toolResult: data.toolResult,
                 };
-                // ── Show meta sidebar for completed action tools ────────
                 const actionTools = [
-                  "gmail_messages_send","calendar_events_create",
-                  "calendar_events_update","calendar_events_delete",
+                  "gmail_messages_send", "calendar_events_create",
+                  "calendar_events_update", "calendar_events_delete",
                 ];
                 if (actionTools.includes(data.toolName) && data.toolStatus === "success") {
                   setMeta({
@@ -1240,12 +822,10 @@ export default function ChatPage() {
                   });
                 }
               } else {
-                // No pending found — append as completed step
                 steps.push({ id: nanoid(), timestamp: Date.now(), ...resolved });
               }
             }
           } else {
-            // Plain step (no toolName)
             steps.push({ id: nanoid(), timestamp: Date.now(), ...resolved });
           }
 
@@ -1334,31 +914,36 @@ export default function ChatPage() {
   // ─── Render ────────────────────────────────────────────────────────────────
 
   return (
-    <div className="flex h-full overflow-hidden" style={{ background: "#141414" }}>
+    <div className="flex h-full overflow-hidden bg-[var(--surface-0)]">
 
       {/* ── Chat column ─────────────────────────────────────────────────── */}
       <div className="flex flex-col flex-1 min-w-0">
 
         {/* topbar */}
-        <div className="flex items-center justify-between px-5 py-3 shrink-0"
-          style={{ borderBottom: "1px solid rgba(255,255,255,.08)" }}>
-          <button className="flex items-center gap-1.5 text-sm font-semibold"
-            style={{ color: "#f0f0f0" }}>
+        <div
+          className="flex items-center justify-between px-5 py-3 shrink-0"
+          style={{ borderBottom: "1px solid var(--border)" }}
+        >
+          <button className="flex items-center gap-1.5 text-sm font-semibold text-[var(--text-primary)]">
             New conversation <Ico.ChevDown />
           </button>
           <div className="flex items-center gap-1">
             {/* SSE status dot */}
-            <span title={sseOk ? "SSE connected" : "SSE connecting…"}
+            <span
+              title={sseOk ? "SSE connected" : "SSE connecting…"}
               className="w-2 h-2 rounded-full mr-2"
-              style={{ background: sseOk ? "#22c55e" : "#f59e0b" }}/>
+              style={{ background: sseOk ? "#16a34a" : "#d97706" }}
+            />
             {[
               { el: <Ico.History />, t: "History" },
               { el: <Ico.Share />,   t: "Share"   },
               { el: <Ico.Dots />,    t: "More"    },
             ].map(({ el, t }) => (
-              <button key={t} title={t}
-                className="w-8 h-8 rounded-lg flex items-center justify-center"
-                style={{ color: "#777" }}>
+              <button
+                key={t}
+                title={t}
+                className="w-8 h-8 rounded-lg flex items-center justify-center text-[var(--text-tertiary)] hover:text-[var(--text-secondary)] hover:bg-[var(--surface-2)] transition-colors"
+              >
                 {el}
               </button>
             ))}
@@ -1366,8 +951,10 @@ export default function ChatPage() {
         </div>
 
         {/* messages */}
-        <div className="flex-1 overflow-y-auto"
-          style={{ scrollbarWidth: "thin", scrollbarColor: "rgba(255,255,255,.08) transparent" }}>
+        <div
+          className="flex-1 overflow-y-auto"
+          style={{ scrollbarWidth: "thin", scrollbarColor: "var(--border) transparent" }}
+        >
           {messages.length === 0 ? (
             <div className="h-full">
               <Empty onPrompt={p => { setInput(p); inputRef.current?.focus(); void send(p); }} />
@@ -1375,8 +962,11 @@ export default function ChatPage() {
           ) : (
             <div>
               {messages.map((m, i) => (
-                <div key={m.id} className="group"
-                  style={{ borderBottom: i < messages.length - 1 ? "1px solid rgba(255,255,255,.05)" : "none" }}>
+                <div
+                  key={m.id}
+                  className="group"
+                  style={{ borderBottom: i < messages.length - 1 ? "1px solid var(--border)" : "none" }}
+                >
                   {m.role === "user" ? <UserMsg m={m} /> : <AIMsg m={m} />}
                 </div>
               ))}
@@ -1386,12 +976,15 @@ export default function ChatPage() {
         </div>
 
         {/* input */}
-        <div className="px-5 pb-5 pt-3 shrink-0"
-          style={{ borderTop: "1px solid rgba(255,255,255,.08)" }}>
-          <div className="flex items-end gap-2 rounded-2xl px-4 py-3"
-            style={{ background: "rgba(255,255,255,.04)", border: "1px solid rgba(255,255,255,.1)" }}>
-            <button className="shrink-0 w-7 h-7 flex items-center justify-center mb-0.5"
-              style={{ color: "#777" }}>
+        <div
+          className="px-5 pb-5 pt-3 shrink-0"
+          style={{ borderTop: "1px solid var(--border)" }}
+        >
+          <div
+            className="flex items-end gap-2 rounded-2xl px-4 py-3 bg-[var(--surface-1)]"
+            style={{ border: "1px solid var(--border)" }}
+          >
+            <button className="shrink-0 w-7 h-7 flex items-center justify-center mb-0.5 text-[var(--text-tertiary)]">
               <Ico.Attach />
             </button>
             <textarea
@@ -1402,23 +995,25 @@ export default function ChatPage() {
               placeholder="Ask anything..."
               rows={1}
               disabled={loading}
-              className="flex-1 bg-transparent text-sm outline-none resize-none py-0.5"
-              style={{ color: "#f0f0f0", minHeight: "22px", maxHeight: "120px" }}
+              className="flex-1 bg-transparent text-sm outline-none resize-none py-0.5 text-[var(--text-primary)] placeholder:text-[var(--text-tertiary)]"
+              style={{ minHeight: "22px", maxHeight: "120px" }}
             />
             <button
               onClick={() => void send()}
               disabled={!input.trim() || loading}
-              className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0 disabled:opacity-40"
-              style={{ background: "#e75b85" }}>
-              {loading
-                ? <svg className="animate-spin h-4 w-4 text-white" viewBox="0 0 24 24" fill="none">
-                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
-                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
-                  </svg>
-                : <Ico.Send />}
+              className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0 disabled:opacity-40 bg-[var(--accent)] hover:bg-[var(--accent-hover)] transition-colors"
+            >
+              {loading ? (
+                <svg className="animate-spin h-4 w-4 text-white" viewBox="0 0 24 24" fill="none">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
+                </svg>
+              ) : (
+                <Ico.Send />
+              )}
             </button>
           </div>
-          <p className="mt-2 text-center" style={{ fontSize: "11px", color: "#777" }}>
+          <p className="mt-2 text-center text-[11px] text-[var(--text-tertiary)]">
             Superhuman AI can make mistakes. Consider checking important info.
           </p>
         </div>

@@ -256,7 +256,7 @@ export const authConfig: NextAuthOptions = {
       // stored refresh token. Flag the client so withAuth can return a
       // clean 401 instead of letting the request fail inside Corsair.
       logger.debug("Access token expired — Corsair will refresh on next API call");
-      return { ...token, error: "RefreshAccessTokenError" as const };
+      return token;
     },
 
     // ── Session callback ──────────────────────────────────────────────────

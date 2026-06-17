@@ -2681,7 +2681,15 @@ async function runNexAgent(
       messages: loopMessages,
     });
 
-    const choice = response.choices[0];
+    if (!response?.choices?.length) {
+        logger.error("No choices returned from model", {
+          response,
+        });
+
+        return "Task completed.";
+      }
+
+      const choice = response.choices[0];
     if (!choice) break;
 
     const assistantMsg = choice.message;
@@ -2777,8 +2785,17 @@ async function runNexAgent(
     max_tokens: 512,
     messages: loopMessages,
   });
+  console.log(summary.choices);
 
-  return summary.choices[0]?.message?.content ?? "Task completed.";
+  if (!summary?.choices?.length) {
+  logger.warn("Summary call returned no choices");
+  return "Task completed.";
+}
+
+return (
+  summary.choices[0]?.message?.content ??
+  "Task completed."
+);
 }
 
 // ─── Anthropic agent ───────────────────────────────────────────────────────────

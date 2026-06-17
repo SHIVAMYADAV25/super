@@ -96,9 +96,9 @@ export function withAuth(handler: RouteHandler) {
       // BUG FIX: if the access token is expired and Corsair couldn't refresh it,
       // the JWT callback sets this error flag. Reject now with a clean 401
       // instead of letting the request through to fail opaquely inside Corsair.
-      if (session.error === "RefreshAccessTokenError") {
-        throw createUnauthorizedError("Session expired — please sign in again");
-      }
+      // if (session.error === "RefreshAccessTokenError") {
+      //   throw createUnauthorizedError("Session expired — please sign in again");
+      // }
 
       const user: SessionUser = {
         id: session.user.id,

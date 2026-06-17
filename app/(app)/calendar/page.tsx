@@ -422,7 +422,9 @@ function EventDetail({ event, dark, onClose, onDeleted, onRsvp }: EventDetailPro
         <div style={{ borderTop: `1px solid ${dark ? "#27292f" : "#e5e7eb"}`, paddingTop: 12, marginBottom: 14 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
             <Clock size={13} color={dark ? "#6b7280" : "#9ca3af"} />
-            <span style={{ fontSize: 12, color: dark ? "#9ca3af" : "#4b5563" }}>{fmt(start, "EEEE, MMMM d")}</span>
+            <span style={{ fontSize: 12, color: dark ? "#9ca3af" : "#4b5563" }}>
+              {start.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' })}
+            </span>
           </div>
           <div style={{ fontSize: 12, color: dark ? "#6b7280" : "#9ca3af", paddingLeft: 21, fontFamily: "monospace" }}>
             {fmt(start, "h:mm a")} – {fmt(end, "h:mm a")}
