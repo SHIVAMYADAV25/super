@@ -35,7 +35,7 @@ import { NextRequest } from "next/server";
 // GET /api/search?q=...&mode=both&limit=20
 export const GET = withAuth(async (req) => {
   try {
-    checkRateLimit(getRateLimitKey(req as NextRequest, req.user.id), RATE_LIMITS.search);
+    await checkRateLimit(getRateLimitKey(req as NextRequest, req.user.id), RATE_LIMITS.search);
 
     const { searchParams } = new URL(req.url);
     const input = searchSchema.parse({

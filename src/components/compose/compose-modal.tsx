@@ -5,6 +5,7 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/src/lib/api-client";
 import type { Email } from "@/src/types";
 import { SendEmailSchema } from "@/src/schema";
+import { useSession } from "next-auth/react";
 
 // ─── Recipient chip input ─────────────────────────────────────────────────────
 
@@ -171,8 +172,9 @@ export function ComposeModal({ replyTo, onClose, onSent }: ComposeModalProps) {
   const [sendError, setSendError] = useState<string | null>(null);
   const [showDiscard, setShowDiscard] = useState(false);
   const bodyRef = useRef<HTMLTextAreaElement>(null);
+  const { data: session } = useSession();
 
-  const { draftId, saveStatus, discardDraft } = useAutosaveDraft("user", {
+  const { draftId, saveStatus, discardDraft } = useAutosaveDraft(session?.user?.id, {
     to, cc, subject, body,
   });
 
@@ -194,28 +196,27 @@ export function ComposeModal({ replyTo, onClose, onSent }: ComposeModalProps) {
   });
 
   // Validate before send
-  function handleSend() {
-    setSendError(null);
-    const result = SendEmailSchema.safeParse({ to, cc, subject, body });
-    if (!result.success) {
-      const first = result.error.flatten().fieldErrors;
-      const msg =
-        first.to?.[0] ?? first.subject?.[0] ?? first.body?.[0] ?? "Please fill in required fields";
-      setSendError(msg);
-      return;
-    }
-    sendMutation.mutate();
+  const handleSend = useCallback(() => {
+  setSendError(null);
+  const result = SendEmailSchema.safeParse({ to, cc, subject, body });
+  if (!result.success) {
+    const first = result.error.flatten().fieldErrors;
+    const msg = first.to?.[0] ?? first.subject?.[0] ?? first.body?.[0] ?? "Please fill in required fields";
+    setSendError(msg);
+    return;
   }
+  sendMutation.mutate();
+}, [to, cc, subject, body, sendMutation]);
 
   // Close with confirmation if content present
-  function handleClose() {
+  const handleClose = useCallback(() => {
     const hasContent = to.length > 0 || subject || body;
     if (hasContent) {
       setShowDiscard(true);
     } else {
       onClose();
     }
-  }
+  }, [to, subject, body, onClose]);
 
   async function handleDiscard() {
     await discardDraft();
@@ -224,18 +225,16 @@ export function ComposeModal({ replyTo, onClose, onSent }: ComposeModalProps) {
 
   // Cmd+Enter sends
   useEffect(() => {
-    function onKey(e: KeyboardEvent) {
-      if ((e.metaKey || e.ctrlKey) && e.key === "Enter") {
-        e.preventDefault();
-        handleSend();
-      }
-      if (e.key === "Escape") {
-        handleClose();
-      }
+  function onKey(e: KeyboardEvent) {
+    if ((e.metaKey || e.ctrlKey) && e.key === "Enter") {
+      e.preventDefault();
+      handleSend();
     }
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  });
+    if (e.key === "Escape") handleClose();
+  }
+  window.addEventListener("keydown", onKey);
+  return () => window.removeEventListener("keydown", onKey);
+}, [handleSend, handleClose]);  // ← add dependency array
 
   // Auto-focus body
   useEffect(() => {

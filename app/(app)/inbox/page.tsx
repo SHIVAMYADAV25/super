@@ -683,6 +683,8 @@ import { isToday, isYesterday, subDays, isAfter, startOfMonth } from "date-fns";
 import { Pencil, Search } from "lucide-react";
 import { EmailDetail } from "@/src/components/Email/EmailDetail";
 
+
+
 const TIMELINE_ORDER = ["Today", "Yesterday", "Last 7 days", "Earlier this month"];
 
 function getTimelineGroup(dateInput: string | Date | null | undefined): string {
@@ -784,52 +786,69 @@ function EmailRow({ email, isSelected, onClick }: { email: EmailListItem; isSele
   );
 }
 
-function RecentOpensSidebar({ hasSelectedEmail, onSelectRecent }: { hasSelectedEmail: boolean; onSelectRecent: (id: string) => void }) {
-  const items = [
-    { id: "19ec313135361f62", name: "Aman Raj",    time: "34 mins ago",  desc: "You have an invitation ✉️" },
-    { id: "19ec380fd7640730", name: "Devo jeet",   time: "46 mins ago",  desc: "You have an invitation" },
-    { id: "19eb72ca19b44781", name: "Vercel",       time: "Tue 4:11 PM", desc: "Re: Intro to Dashlane Webinar", section: "Yesterday" },
-    { id: "19ebdbff53eefec5", name: "Railway",      time: "Tue 4:09 PM", desc: "Product-Focused Direction", section: "Yesterday" },
-    { id: "19ebfa42a7c88910", name: "Faizan Khan",  time: "Tue 2:54 PM", desc: "Partnership & Sponsorship Kit", section: "Yesterday" },
-    { id: "19ebc4a3232e0742", name: "virendaryadav", time: "Mon 5:36 PM", desc: "Re: Jason <> Alex", section: "Last 7 days" },
-  ];
+function RecentOpensSidebar({
+  hasSelectedEmail,
+  onSelectRecent,
+  emails,
+}: {
+  hasSelectedEmail: boolean;
+  onSelectRecent: (id: string) => void;
+  emails: EmailListItem[];
+}) {
+  // Show the 6 most recently received emails as "recent opens"
+  const recent = [...emails]
+    .filter((e) => e.receivedAt)
+    .sort((a, b) => new Date(b.receivedAt!).getTime() - new Date(a.receivedAt!).getTime())
+    .slice(0, 6);
 
   return (
-    <div className={`w-[280px] h-full flex flex-col pt-6 select-none shrink-0 relative transition-colors duration-150 overflow-hidden
-      ${hasSelectedEmail ? "bg-surface-0 border-l border-neutral-200 dark:border-neutral-800/20" : "bg-surface-sidebar border-l border-neutral-200/60 dark:border-neutral-900/60"}`}>
+    <div
+      className={`w-[280px] h-full flex flex-col pt-6 select-none shrink-0 relative transition-colors duration-150 overflow-hidden
+        ${hasSelectedEmail
+          ? "bg-surface-0 border-l border-neutral-200 dark:border-neutral-800/20"
+          : "bg-surface-sidebar border-l border-neutral-200/60 dark:border-neutral-900/60"
+        }`}
+    >
       <div className="px-6 pb-4 shrink-0">
-        <h2 className="text-xs font-semibold text-text-primary tracking-tight">Recent Opens</h2>
+        <h2 className="text-xs font-semibold text-text-primary tracking-tight">Recent</h2>
       </div>
 
-      <div className="flex-1 overflow-y-auto px-6 space-y-5 pb-4 custom-thin-scrollbar">
-        <div className="space-y-3.5">
-          {items.filter((i) => !i.section).map((item, idx) => (
-            <div key={idx} onClick={() => onSelectRecent(item.id)} className="min-w-0 cursor-pointer block group">
-              <div className="flex items-baseline justify-between gap-2 mb-0.5">
-                <p className="text-xs font-medium text-text-primary/90 group-hover:text-accent transition-colors truncate">{item.name}</p>
-                <span className="text-[10px] text-text-tertiary/70 shrink-0 font-mono">{item.time}</span>
-              </div>
-              <p className="text-xs text-text-secondary truncate leading-normal">{item.desc}</p>
-            </div>
-          ))}
-        </div>
+      <div className="flex-1 overflow-y-auto px-6 space-y-3.5 pb-4 custom-thin-scrollbar">
+        {recent.length === 0 && (
+          <p className="text-xs text-text-tertiary italic">No emails loaded yet.</p>
+        )}
+        {recent.map((item) => {
+          const fromName =
+            item.fromAddr?.match(/^"?([^"<]+)"?\s*</)?.[1]?.trim() ??
+            item.fromAddr ??
+            "Unknown";
+          const timeStr = item.receivedAt
+            ? new Date(item.receivedAt).toLocaleTimeString("en-US", {
+                hour: "numeric",
+                minute: "2-digit",
+              })
+            : "";
 
-        {["Yesterday", "Last 7 days"].map((section) => (
-          <div key={section} className="space-y-2.5 pt-1">
-            <h3 className="text-[10px] font-bold tracking-super-wide text-text-tertiary uppercase font-mono">{section}</h3>
-            <div className="space-y-3.5">
-              {items.filter((i) => i.section === section).map((item, idx) => (
-                <div key={idx} onClick={() => onSelectRecent(item.id)} className="min-w-0 cursor-pointer block group">
-                  <div className="flex items-baseline justify-between gap-2 mb-0.5">
-                    <p className="text-xs font-medium text-text-primary/90 group-hover:text-accent transition-colors truncate">{item.name}</p>
-                    <span className="text-[10px] text-text-tertiary/70 shrink-0 font-mono">{item.time}</span>
-                  </div>
-                  <p className="text-xs text-text-secondary truncate leading-normal">{item.desc}</p>
-                </div>
-              ))}
+          return (
+            <div
+              key={item.gmailId}
+              onClick={() => onSelectRecent(item.gmailId)}
+              className="min-w-0 cursor-pointer block group"
+            >
+              <div className="flex items-baseline justify-between gap-2 mb-0.5">
+                <p className="text-xs font-medium text-text-primary/90 group-hover:text-accent transition-colors truncate">
+                  {fromName}
+                </p>
+                <span className="text-[10px] text-text-tertiary/70 shrink-0 font-mono">
+                  {timeStr}
+                </span>
+              </div>
+              <p className="text-xs text-text-secondary truncate leading-normal">
+                {item.subject ?? "(no subject)"}
+              </p>
             </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
 
       <div className="px-6 py-3 border-t border-neutral-200 dark:border-neutral-800/40 flex items-center justify-between text-[10px] tracking-super-wide text-text-tertiary/80 uppercase font-mono shrink-0">
@@ -859,6 +878,17 @@ export default function InboxPage() {
   const [composeOpen, setComposeOpen] = useState(false);
   const [replyTo, setReplyTo] = useState<Email | null>(null);
   const [searchOpen, setSearchOpen] = useState(false);
+
+  useEffect(() => {
+    const openCompose = () => setComposeOpen(true);
+    const openSearch = () => setSearchOpen(true);
+    window.addEventListener("compose:open", openCompose);
+    window.addEventListener("search:open", openSearch);
+    return () => {
+      window.removeEventListener("compose:open", openCompose);
+      window.removeEventListener("search:open", openSearch);
+    };
+  }, []);
 
   const queryClient = useQueryClient();
 
@@ -1078,9 +1108,13 @@ export default function InboxPage() {
         </div>
       )}
 
-      {/* <div className={selectedId ? "hidden" : "block"}>
-        <RecentOpensSidebar hasSelectedEmail={!!selectedId} onSelectRecent={(id) => setSelectedId(id)} />
-      </div> */}
+      <div className={selectedId ? "hidden" : "block"}>
+        <RecentOpensSidebar
+          hasSelectedEmail={!!selectedId}
+          onSelectRecent={(id) => setSelectedId(id)}
+          emails={emails}
+        />
+      </div>
 
       {composeOpen && (
         <ComposeModal replyTo={replyTo}

@@ -16,7 +16,7 @@ import { subscribeAllWebhooks } from "@/src/server/lib/webhook-subscriptions";
  */
 export const POST = withAuth(async (req) => {
   try {
-    await subscribeAllWebhooks(req.user.googleSub);
+    await subscribeAllWebhooks(req.user.googleSub, req.user.id);
     return success({ subscribed: true });
   } catch (err) {
     return handleRouteError(err);

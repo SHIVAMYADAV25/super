@@ -36,6 +36,13 @@
       "when": 1781596941994,
       "tag": "0004_breezy_maginty",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1781677434211,
+      "tag": "0005_opposite_wild_pack",
+      "breakpoints": true
     }
   ]
 }

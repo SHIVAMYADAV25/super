@@ -122,10 +122,10 @@ try {
 
   (user as any).dbUserId = dbUser.id;
 
-  console.log("USER IDS", {
-    googleSub: user.id,
-    dbUserId: dbUser.id,
-  });
+  // console.log("USER IDS", {
+  //   googleSub: user.id,
+  //   dbUserId: dbUser.id,
+  // });
 } catch (err) {
         logger.error("getOrCreateUser failed during sign-in", {
           userId: user.id,
@@ -148,7 +148,7 @@ try {
           // realtime webhooks instead of polling. Fire-and-forget —
           // never blocks sign-in, and re-registers (renews) on every login
           // since both subscription types expire after a few days/weeks.
-          void subscribeAllWebhooks(user.id).catch((err:any) => {
+          void subscribeAllWebhooks(user.id, dbUser.id).catch((err:any) => {
             logger.warn("Webhook subscription registration failed", {
               userId: user.id,
               error: String(err),

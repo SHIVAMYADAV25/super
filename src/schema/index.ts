@@ -128,7 +128,7 @@ export const ListEventSchema = z.object({
 })
 
 export const RSVPSchema = z.object({
-    status : z.enum(["accepted","declined","tentative"])
+  status: z.enum(["accepted", "declined", "tentative", "needsAction"]),
 });
 
 // search

@@ -1179,7 +1179,7 @@ export default function ChatPage() {
       es = new EventSource("/api/events/stream");
 
       es.addEventListener("connected", () => {
-        console.log("[SSE] ✅ connected");
+        // console.log("[SSE] ✅ connected");
         setSseOk(true);
       });
 
@@ -1187,7 +1187,7 @@ export default function ChatPage() {
       // Shape: { level?, message, toolName?, toolStatus?, toolArgs?, toolResult? }
       es.addEventListener("agent_status", (ev: MessageEvent) => {
         const data = JSON.parse(ev.data as string) as SSEData;
-        console.log("[SSE] agent_status →", data);
+        // console.log("[SSE] agent_status →", data);
 
         const msgId = currentIdRef.current;
         if (!msgId) return;

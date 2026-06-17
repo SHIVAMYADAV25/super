@@ -141,7 +141,7 @@ import { NextRequest } from "next/server";
 
 export const POST = withAuth(async (req) => {
   try {
-    checkRateLimit(getRateLimitKey(req as NextRequest, req.user.id), RATE_LIMITS.chat);
+    await checkRateLimit(getRateLimitKey(req as NextRequest, req.user.id), RATE_LIMITS.chat);
 
     const body = await req.json();
     const input = ChatMessageSchema.parse(body);

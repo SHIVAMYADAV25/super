@@ -10,7 +10,7 @@ import { and, eq } from "drizzle-orm";
 import { NextRequest } from "next/server";
 
 
-// GET /api/emails — list inbox emails
+// — list inbox emails
 export const GET = withAuth(async (req) => {
     try {
         const {searchParams} = new URL(req.url);
@@ -33,38 +33,37 @@ export const GET = withAuth(async (req) => {
 
 // POST /api/emails — send email
 export const POST = withAuth(async (req) => {
-    try {
-        checkRateLimit(
-            getRateLimitKey(req as NextRequest,req.user.id),
-            RATE_LIMITS.send,
-        )
+  try {
+    await checkRateLimit(
+      getRateLimitKey(req as NextRequest, req.user.id),
+      RATE_LIMITS.send,
+    );
 
-        const body = await req.json();
-        const input = SendEmailSchema.parse(body);
+    const body = await req.json();
+    const input = SendEmailSchema.parse(body);
+    const result = await sendEmail(req.user.googleSub, req.user.id, input, req.user.email);
 
-        const result = await sendEmail(req.user.googleSub,req.user.id,input,req.user.email);
+    if (input.draftId) {
+      // 1. Read FIRST to get gmailDraftId
+      const [draft] = await db
+        .select()
+        .from(drafts)
+        .where(and(eq(drafts.id, input.draftId), eq(drafts.userId, req.user.id)))
+        .limit(1);
 
-        // Clean up local draft record if one was associated
-        if(input.draftId){
-            await db.
-            delete(drafts)
-            .where(and(eq(drafts.id, input.draftId), eq(drafts.userId, req.user.id)))
+      // 2. Delete Gmail draft if it was synced
+      if (draft?.gmailDraftId) {
+        await deleteDraft(req.user.googleSub, req.user.id, draft.gmailDraftId);
+      }
 
-            // Also delete from Gmail if we have a gmail draft ID
-            const [draft] = await db
-            .select()
-            .from(drafts)
-            .where(and(eq(drafts.id, input.draftId), eq(drafts.userId, req.user.id)))
-            .limit(1);
-
-            if (draft?.gmailDraftId) {
-                await deleteDraft(req.user.googleSub,req.user.id, draft.gmailDraftId);
-            }
-        }
-
-        return success(result, 201);
-
-    } catch (error) {
-        return handleRouteError(error);
+      // 3. Delete DB record last
+      await db
+        .delete(drafts)
+        .where(and(eq(drafts.id, input.draftId), eq(drafts.userId, req.user.id)));
     }
-})
+
+    return success(result, 201);
+  } catch (error) {
+    return handleRouteError(error);
+  }
+});

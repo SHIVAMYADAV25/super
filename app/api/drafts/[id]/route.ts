@@ -5,7 +5,7 @@ import { SaveDraftSchema } from "@/src/schema";
 import { db } from "@/src/server/db";
 import { drafts } from "@/src/server/db/schema";
 import { buildRawMimeMessage } from "@/src/server/lib/gmail-parser";
-import { updateDraft } from "@/src/server/services/email.service";
+import { deleteDraft, updateDraft } from "@/src/server/services/email.service";
 import { and, eq } from "drizzle-orm";
 
 // PUT /api/drafts/[id] — update existing draft
@@ -66,28 +66,28 @@ export const PUT = withAuth(async (req, { params }) => {
 
 // DELETE /api/drafts/[id]
 export const DELETE = withAuth(async (req, { params }) => {
-    const { id } = await params;
+  const { id } = await params;
+  try {
+    const [draft] = await db
+      .select()
+      .from(drafts)
+      .where(and(eq(drafts.id, id), eq(drafts.userId, req.user.id)))
+      .limit(1);
 
-    try {
-        const [draft] = await db
-            .select()
-            .from(drafts)
-            .where(
-                and(
-                    eq(drafts.id, id),
-                    eq(drafts.userId, req.user.id)
-                )
-            )
-            .limit(1);
+    if (!draft) throw createNotFoundError("Draft");
 
-        if (!draft) throw createNotFoundError("Draft");
-
-        await db
-            .delete(drafts)
-            .where(eq(drafts.id, id));
-
-        return success({ deleted: true });
-    } catch (err) {
-        return handleRouteError(err);
+    // Delete from Gmail first
+    if (draft.gmailDraftId) {
+      await deleteDraft(req.user.googleSub, req.user.id, draft.gmailDraftId);
     }
+
+    // Then delete from DB
+    await db
+      .delete(drafts)
+      .where(and(eq(drafts.id, id), eq(drafts.userId, req.user.id)));
+
+    return success({ deleted: true });
+  } catch (err) {
+    return handleRouteError(err);
+  }
 });

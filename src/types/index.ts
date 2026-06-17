@@ -141,14 +141,6 @@ export interface CreateEventInput {
  
 export type SearchMode = "text" | "semantic" | "both";
  
-export interface SearchResult {
-  type: "email" | "event";
-  id: string;
-  title: string;
-  snippet: string;
-  date: Date | null;
-  relevanceScore?: number;
-}
 
 // ─── Agent Chat ────────────────────────────────────────────────────────────────
  

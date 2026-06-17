@@ -147,7 +147,7 @@ function useListEvents(from: string, to: string) {
       // Attach inferred calendar label for UI colour mapping
       return arr.map((e: CalendarEvent) => ({
         ...e,
-        calendar: inferCalendar(e.summary),
+        calendar: e.calendarType ?? inferCalendar(e.summary),
       }));
     },
     staleTime: 30_000,
@@ -820,7 +820,7 @@ export default function CalendarPage() {
 
   // GET /api/calendar/events — primary data fetch
   const { data: serverEvents = [], isLoading, isError, error: fetchError } = useListEvents(from, to);
-  console.log(serverEvents);
+  // console.log(serverEvents);
 
   // Merge server events with any optimistically-added local events
   const allEvents = useMemo<CalendarEvent[]>(() => {

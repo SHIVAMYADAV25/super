@@ -29,7 +29,7 @@ export const GET = withAuth(async (req)=>{
 // POST /api/calendar/events
 export const POST = withAuth(async (req) => {
     try{
-        checkRateLimit(getRateLimitKey(req as NextRequest, req.user.id), RATE_LIMITS.default);
+        await checkRateLimit(getRateLimitKey(req as NextRequest, req.user.id), RATE_LIMITS.default);
 
         const body = await req.json();
 

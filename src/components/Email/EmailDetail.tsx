@@ -79,7 +79,10 @@ useEffect(() => {
   if (email && !email.isRead) {
     markReadMutation.mutate(gmailId);
   }
-}, [email, gmailId]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+}, [email?.isRead, gmailId]);
+// Intentionally omit markReadMutation — it's stable but changes identity;
+// we only want this to run when email read status or ID changes.
 
   const safeHtml = email?.body && (email.body.includes("<p") || email.body.includes("<div") || email.body.includes("<table"))
     ? DOMPurify.sanitize(email.body, { 
