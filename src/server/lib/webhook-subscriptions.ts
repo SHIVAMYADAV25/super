@@ -43,9 +43,9 @@ import { eq } from "drizzle-orm";
 function webhookCallbackUrl(tenantId: string): string {
   const base = (env.NEXT_PUBLIC_APP_URL ?? env.NEXTAUTH_URL).replace(/\/$/, "");
   const params = new URLSearchParams({
-    tenantId,
-    token: env.WEBHOOK_SHARED_SECRET,
-  });
+  tenantId,
+  ...(env.WEBHOOK_SHARED_SECRET ? { token: env.WEBHOOK_SHARED_SECRET } : {}),
+});
   return `${base}/api/webhooks?${params.toString()}`;
 }
 
