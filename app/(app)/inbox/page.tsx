@@ -682,7 +682,7 @@ import { SearchCommand } from "@/src/components/search/search-command";
 import { isToday, isYesterday, subDays, isAfter, startOfMonth } from "date-fns";
 import { Pencil, Search } from "lucide-react";
 import { EmailDetail } from "@/src/components/Email/EmailDetail";
-import router from "next/router";
+import { useRouter } from "next/navigation";
 
 
 
@@ -880,6 +880,7 @@ export default function InboxPage() {
   const [replyTo, setReplyTo] = useState<Email | null>(null);
   const [searchOpen, setSearchOpen] = useState(false);
   const [gChord, setGChord] = useState(false);
+  const router = useRouter();
   useEffect(() => {
     const openCompose = () => setComposeOpen(true);
     const openSearch = () => setSearchOpen(true);
@@ -967,16 +968,6 @@ export default function InboxPage() {
   [emails, selectedId]
 );
 
-  useEffect(() => {
-    const openCompose = () => setComposeOpen(true);
-    const openSearch = () => setSearchOpen(true);
-    window.addEventListener("compose:open", openCompose);
-    window.addEventListener("search:open", openSearch);
-    return () => {
-      window.removeEventListener("compose:open", openCompose);
-      window.removeEventListener("search:open", openSearch);
-    };
-  }, []);
 
   const filteredEmails = useMemo(() => filterByTab(emails, activeTab), [emails, activeTab]);
 

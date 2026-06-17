@@ -1,5 +1,8 @@
 // app/api/webhooks/route.ts
-//
+// PROXY: /api/webhooks
+// PROXY: /api/webhooks
+// [2026-06-17T22:13:26.646Z] [DEBUG] Gmail webhook received {"type":"messageChanged"}
+// [2026-06-17T22:13:26.671Z] [DEBUG] Gmail webhook received {"type":"messageChanged"}
 // BUGS FIXED:
 //
 // BUG 2 — Gmail PubSub never routed to the right tenant.

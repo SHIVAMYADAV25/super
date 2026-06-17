@@ -320,19 +320,19 @@ export async function listEmail(
     const withPriority = applyPriorityMap(items, priorityMap);
 
     // Queue enrichment for any cached rows we haven't classified yet.
-    await queueUnenriched(
-      userId,
-      googleSub,
-      inboxCached.map((row) => {
-        const d = row.data as Record<string, unknown>;
-        return {
-          gmailId: (d.id as string) ?? row.entity_id,
-          subject: (d.subject as string) ?? null,
-          snippet: (d.snippet as string) ?? null,
-          body: null, // cache doesn't store body; enrichment falls back to subject+snippet
-        };
-      }),
-    );
+    // await queueUnenriched(
+    //   userId,
+    //   googleSub,
+    //   inboxCached.map((row) => {
+    //     const d = row.data as Record<string, unknown>;
+    //     return {
+    //       gmailId: (d.id as string) ?? row.entity_id,
+    //       subject: (d.subject as string) ?? null,
+    //       snippet: (d.snippet as string) ?? null,
+    //       body: null, // cache doesn't store body; enrichment falls back to subject+snippet
+    //     };
+    //   }),
+    // );
 
     return {
       items: filterByPriority(withPriority, opts.priority),
@@ -473,10 +473,10 @@ export async function archiveEmail(googleSub: string, userId: string, gmailId: s
   try {
     const tenant = getTenant(googleSub);
     await tenant.gmail.api.messages.modify({ id: gmailId, removeLabelIds: ["INBOX"] });
-    await db
-      .update(emails)
-      .set({ updatedAt: new Date() })
-      .where(and(eq(emails.userId, userId), eq(emails.gmailId, gmailId)));
+    await db.update(emails).set({
+        labels: sql`array_remove(${emails.labels}, 'INBOX')`,
+        updatedAt: new Date(),
+      }).where(and(eq(emails.userId, userId), eq(emails.gmailId, gmailId)));
   } catch (err) {
     logger.error("archiveEmail failed", { userId, gmailId, error: String(err) });
     throw createExternalApiError("Gmail", err);

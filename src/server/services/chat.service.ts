@@ -91,7 +91,7 @@ async function classifyIntent(prompt: string): Promise<"chat" | "agent"> {
     const raw = res.choices[0]?.message?.content?.trim().toLowerCase() ?? "";
     return raw.startsWith("agent") ? "agent" : "chat";
   } catch {
-    return "agent";
+    return "chat";
   }
 }
 
