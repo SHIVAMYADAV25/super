@@ -1,21 +1,90 @@
-// src/server/lib/sse.ts
-// Replace the in-memory implementation with Redis pub/sub:
 
-import { redis } from "@/src/lib/redis";
-import { SSEEvent } from "@/src/types";
+
+// // Singleton in-process emitter
+// // For multi-instance deployments, replace with Redis pub/sub
+
+// import { logger } from "@/src/lib/logger";
+// import { SSEEvent } from "@/src/types";
+// import { EventEmitter } from "events";
+
+// const globalForSSE = globalThis as unknown as {sseEmitter : EventEmitter | undefined};
+
+// const emitter : EventEmitter =
+// globalForSSE.sseEmitter ?? 
+// (() => {
+//     const e = new EventEmitter();
+//     e.setMaxListeners(1000) //  support many concurrent users
+//     return e;
+// })();
+
+// if(process.env.NODE_ENV !== "production"){
+//     globalForSSE.sseEmitter = emitter;
+// }
+
+// /**
+//  * Emit an SSE event to a specific user's stream.
+//  */
+
+// export function emitToUser(userId : string,event : SSEEvent):void{
+//     emitter.emit(`user:${userId}`,event)
+// };
+
+// /**
+//  * Subscribe to SSE events for a user.
+//  * Returns an unsubscribe function.
+//  */
+
+// export function subscribeToUser(
+//     userId: string,
+//     handler : (event : SSEEvent) => void,
+// ):()=>void{
+//     const channel = `user:${userId}`;
+
+//     emitter.on(channel,handler);
+//     logger.debug("SSE subscriber added", { userId });
+
+//     return () => {
+//         emitter.off(channel,handler);
+//         logger.debug("SSE subscriber removed", { userId });
+//     }
+// }
+
+// src/server/lib/sse.ts
+//
+// BUG FIXED: The old code used @upstash/redis (REST-over-HTTPS) to PUBLISH
+// but ioredis (raw TCP) to SUBSCRIBE. These are two completely different
+// connections — a REST publish never reaches a TCP subscriber.
+//
+// FIX: Use ioredis for BOTH publish and subscribe.
+// Upstash provides an ioredis-compatible rediss:// URL — add
+// UPSTASH_REDIS_URL to your .env (get it from Upstash dashboard →
+// your database → "Connect" → "ioredis").
+//
+// env.ts addition needed:
+//   UPSTASH_REDIS_URL: z.string().url(),
+// runtimeEnv addition needed:
+//   UPSTASH_REDIS_URL: process.env.UPSTASH_REDIS_URL,
+
 import Redis from "ioredis";
+import type { SSEEvent } from "@/src/types";
 
 type SSEHandler = (event: SSEEvent) => void;
 const localSubs = new Map<string, Set<SSEHandler>>();
 
-// Subscriber instance (must be separate from the publisher)
-const redisSub = new Redis(process.env.REDIS_URL!);
+// Two separate ioredis clients are required:
+// - redisPub: for PUBLISH commands
+// - redisSub: for SUBSCRIBE commands
+// Redis protocol does not allow a subscribed client to issue other commands.
+const redisPub = new Redis(process.env.UPSTASH_REDIS_URL!);
+const redisSub = new Redis(process.env.UPSTASH_REDIS_URL!);
 
 redisSub.on("message", (channel: string, message: string) => {
   try {
     const event = JSON.parse(message) as SSEEvent;
     localSubs.get(channel)?.forEach((h) => h(event));
-  } catch { /* ignore */ }
+  } catch {
+    // ignore malformed messages
+  }
 });
 
 export function subscribeToUser(tenantId: string, handler: SSEHandler): () => void {
@@ -35,6 +104,6 @@ export function subscribeToUser(tenantId: string, handler: SSEHandler): () => vo
 }
 
 export function emitToUser(tenantId: string, event: SSEEvent): void {
-  // Publish to Redis — all instances receive it via redisSub
-  void redis.publish(tenantId, JSON.stringify(event));
+  // Now uses ioredis publish — reaches the ioredis subscriber above.
+  void redisPub.publish(tenantId, JSON.stringify(event));
 }

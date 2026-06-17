@@ -411,7 +411,6 @@ interface AgentAction {
 interface ExtendedMsg extends ChatMessage {
   isStreaming?: boolean;
   steps?: Step[];
-  actions?: AgentAction[];
 }
 
 // Shape of data field in every SSE agent_status event

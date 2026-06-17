@@ -960,7 +960,12 @@ export default function InboxPage() {
     },
   });
 
+
   const emails = data?.items ?? [];
+  const selectedEmail = useMemo(
+  () => emails.find((e) => e.gmailId === selectedId) ?? null,
+  [emails, selectedId]
+);
 
   useEffect(() => {
     const openCompose = () => setComposeOpen(true);
@@ -1022,9 +1027,26 @@ const handleKeyDown = useCallback((e: KeyboardEvent) => {
 
   // R — reply to selected
   if (e.key === "r" && selectedEmail) {
-    setReplyTo(selectedEmail);
-    setComposeOpen(true);
-  }
+  setReplyTo({
+    id: selectedEmail.id,
+    userId: "",
+    gmailId: selectedEmail.gmailId,
+    threadId: selectedEmail.threadId,
+    fromAddr: selectedEmail.fromAddr,
+    toAddrs: [],
+    ccAddrs: [],
+    subject: selectedEmail.subject,
+    snippet: selectedEmail.snippet,
+    body: null,
+    isRead: selectedEmail.isRead,
+    labels: selectedEmail.labels,
+    priority: selectedEmail.priority,
+    attachments: [],
+    receivedAt: selectedEmail.receivedAt,
+  });
+
+  setComposeOpen(true);
+}
 
   // C — compose new
   if (e.key === "c") {
@@ -1039,7 +1061,7 @@ const handleKeyDown = useCallback((e: KeyboardEvent) => {
 
   // Escape — close panels
   if (e.key === "Escape") {
-    setSelectedEmail(null);
+    setSelectedId(null);
     setComposeOpen(false);
     setSearchOpen(false);
   }

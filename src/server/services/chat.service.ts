@@ -10,8 +10,8 @@
 //  * │     CHAT                    AGENT TASK                              │
 //  * │  nex-n2-pro:free           dispatch by LLM_PROVIDER_FOR_AGENT       │
 //  * │  answers directly           ↓            ↓           ↓              │
-//  * │  (streaming)           anthropic   openai_agents  vercel_ai          │
-//  * │                      claude-haiku   gpt-4o-mini  claude-haiku        │
+//  * │  (streaming)           anthropic   openai_agents                    │
+//  * │                      claude-haiku   gpt-4o-mini                      │
 //  * │                                                                      │
 //  * │  nex-n2-pro path: full tool registry passed as OpenAI functions      │
 //  * │  (nex-n2-pro doesn't support Corsair MCP natively — we wrap every   │
@@ -21,7 +21,7 @@
 //  *
 //  * Env vars:
 //  *   OPENROUTER_API_KEY        — for router + nex-n2-pro + chat
-//  *   LLM_PROVIDER_FOR_AGENT    — anthropic | openai_agents | vercel_ai | nex
+//  *   LLM_PROVIDER_FOR_AGENT    — anthropic | openai_agents  | nex
 //  *   LLM_PROVIDER_AGENT_KEY    — API key for the chosen agent provider
 //  *   ANTHROPIC_API_KEY         — if using anthropic provider
 //  *   OPENAI_API_KEY            — if using openai_agents provider
@@ -43,7 +43,7 @@
 
 // // ─── Types ─────────────────────────────────────────────────────────────────────
 
-// export type AgentProvider = "anthropic" | "openai_agents" | "vercel_ai" | "nex";
+// export type AgentProvider = "anthropic" | "openai_agents" |  | "nex";
 
 // export interface ChatResponse {
 //   reply: string;
@@ -2377,7 +2377,7 @@ import { emitToUser } from "../lib/sse";
 
 // ─── Types ─────────────────────────────────────────────────────────────────────
 
-export type AgentProvider = "anthropic" | "openai_agents" | "vercel_ai" | "nex";
+export type AgentProvider = "anthropic" | "openai_agents" | "nex";
 
 export interface ChatResponse {
   reply: string;
@@ -2850,46 +2850,6 @@ async function runOpenAIAgent(
   return result.finalOutput ?? "Task completed.";
 }
 
-// ─── Vercel AI ─────────────────────────────────────────────────────────────────
-
-// src/server/services/chat.service.ts
-// Replace runVercelAiAgent with:
-
-async function runVercelAiAgent(
-  corsairTenantId: string,
-  userEmail: string,
-  messages: Array<{ role: "user" | "assistant"; content: string }>,
-): Promise<string> {
-  const { generateText } = await import("ai").catch(() => {
-    throw new Error("'ai' package not installed — run: pnpm add ai @ai-sdk/anthropic");
-  });
-  const { anthropic } = await import("@ai-sdk/anthropic").catch(() => {
-    throw new Error("@ai-sdk/anthropic not installed");
-  });
-  const { createVercelAiMcpClient } = await import("@corsair-dev/mcp").catch(() => {
-    throw new Error("@corsair-dev/mcp not installed");
-  });
-
-  const tenantCorsair = corsair.withTenant(corsairTenantId);
-  const mcpClient = await createVercelAiMcpClient({ corsair: tenantCorsair });
-
-  try {
-    const tools = await mcpClient.tools();
-    const { text } = await generateText({
-      model: anthropic("claude-haiku-4-5"),
-      tools,
-      system: buildAgentSystemPrompt(userEmail),
-      messages: messages.map((m) => ({
-        role: m.role as "user" | "assistant",
-        content: m.content,
-      })),
-      maxSteps: 10,
-    });
-    return text || "Task completed.";
-  } finally {
-    await mcpClient.close().catch(() => {});
-  }
-}
 
 // ─── Agent dispatcher ──────────────────────────────────────────────────────────
 
@@ -2897,7 +2857,6 @@ function getAgentProvider(): AgentProvider {
   const raw = (env.LLM_PROVIDER_FOR_AGENT ?? "nex").toLowerCase().trim();
   if (raw === "anthropic") return "anthropic";
   if (raw === "openai_agents" || raw === "openai") return "openai_agents";
-  if (raw === "vercel_ai" || raw === "vercel") return "vercel_ai";
   return "nex";
 }
 
@@ -2921,10 +2880,6 @@ async function runAgent(
     case "openai_agents": {
       const reply = await runOpenAIAgent(corsairTenantId, userEmail, messages);
       return { reply, model: "gpt-4o-mini", provider };
-    }
-    case "vercel_ai": {
-      const reply = await runVercelAiAgent(corsairTenantId,userEmail, messages);
-      return { reply, model: "claude-haiku-4-5 (vercel-ai)", provider };
     }
   }
 }
