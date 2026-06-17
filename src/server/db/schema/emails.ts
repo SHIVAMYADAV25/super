@@ -1,11 +1,16 @@
 import { customType, json, pgTable, text, uuid,boolean, timestamp, unique } from "drizzle-orm/pg-core";
 import { users } from "./users";
 import { EmailAttachment, EmailPriority } from "@/src/types";
+import { EMBEDDING_DIM } from "@/src/server/lib/llm-provider";
 
 
 const vector = customType<{ data: number[]; driverData: string }>({
   dataType() {
-    return "vector(768)";
+    // EMBEDDING_DIM is derived from ACTIVE_EMBEDDING_MODEL in llm-provider.ts.
+    // Changing LLM_EMBEDDING_MODEL in .env automatically updates the column type
+    // used in ORM queries (raw SQL casts must also use EMBEDDING_DIM — see
+    // search.service.ts).
+    return `vector(${EMBEDDING_DIM})`;
   },
   fromDriver(value: string): number[] {
     return JSON.parse(value.replace(/^\[/, "[").replace(/\]$/, "]"));
@@ -24,7 +29,7 @@ export const emails = pgTable(
       .notNull()
       .references(() => users.id, { onDelete: "cascade" }),
 
-    gmailId: text("gamil_id").notNull(),
+    gmailId: text("gmail_id").notNull(),
 
     threadId: text("thread_id"),
     fromAddr: text("from_addr"),

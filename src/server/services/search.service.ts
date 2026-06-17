@@ -196,7 +196,7 @@ async function semanticSearch(
 
     const rows = await db.execute(sql`
       SELECT
-        gamil_id         AS gmail_id,
+        gmail_id         AS gmail_id,
         subject,
         from_addr,
         snippet,
@@ -288,6 +288,6 @@ export async function storeEmailEmbedding(
       updated_at = NOW()
     WHERE
       user_id  = ${userId}::uuid
-      AND gamil_id = ${gmailId}
+      AND gmail_id = ${gmailId}
   `);
 }

@@ -43,6 +43,13 @@
       "when": 1781677434211,
       "tag": "0005_opposite_wild_pack",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1781719363455,
+      "tag": "0006_open_greymalkin",
+      "breakpoints": true
     }
   ]
 }

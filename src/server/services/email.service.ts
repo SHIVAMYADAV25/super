@@ -320,19 +320,19 @@ export async function listEmail(
     const withPriority = applyPriorityMap(items, priorityMap);
 
     // Queue enrichment for any cached rows we haven't classified yet.
-    // await queueUnenriched(
-    //   userId,
-    //   googleSub,
-    //   inboxCached.map((row) => {
-    //     const d = row.data as Record<string, unknown>;
-    //     return {
-    //       gmailId: (d.id as string) ?? row.entity_id,
-    //       subject: (d.subject as string) ?? null,
-    //       snippet: (d.snippet as string) ?? null,
-    //       body: null, // cache doesn't store body; enrichment falls back to subject+snippet
-    //     };
-    //   }),
-    // );
+    await queueUnenriched(
+      userId,
+      googleSub,
+      inboxCached.map((row) => {
+        const d = row.data as Record<string, unknown>;
+        return {
+          gmailId: (d.id as string) ?? row.entity_id,
+          subject: (d.subject as string) ?? null,
+          snippet: (d.snippet as string) ?? null,
+          body: null, // cache doesn't store body; enrichment falls back to subject+snippet
+        };
+      }),
+    );
 
     return {
       items: filterByPriority(withPriority, opts.priority),
