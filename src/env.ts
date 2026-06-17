@@ -137,14 +137,15 @@ export const env = createEnv({
         // this topic + push subscription ONCE per Google Cloud project; see
         // WEBHOOK_SETUP.md. Format:
         //   projects/<gcp-project-id>/topics/<topic-name>
-        GOOGLE_PUBSUB_TOPIC: z.string().min(1),
+        // GOOGLE_PUBSUB_TOPIC: z.string().min(1),
 
         // Shared secret appended to every webhook callback URL we register
         // with Google (?token=...). The route checks this on every request
         // so randos can't POST fake "new email" events at your endpoint.
-        WEBHOOK_SHARED_SECRET: z.string().min(16),
-        UPSTASH_REDIS_REST_URL: z.string().url(),
-        UPSTASH_REDIS_REST_TOKEN: z.string().min(1),
+        GOOGLE_PUBSUB_TOPIC: z.string().min(1).optional(),
+        WEBHOOK_SHARED_SECRET: z.string().min(16).optional(),
+        UPSTASH_REDIS_REST_URL: z.string().url().optional(),
+        UPSTASH_REDIS_REST_TOKEN: z.string().min(1).optional(),
     },
     client : {
         NEXT_PUBLIC_APP_URL : z.string().url(),
