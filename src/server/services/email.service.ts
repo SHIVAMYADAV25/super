@@ -1,5 +1,3 @@
-
-
 /**
  * email.service.ts — single source of truth for Gmail operations.
  *
@@ -18,7 +16,7 @@
  *  (one row, no full refetch).
  */
 
-import { and, eq, inArray, sql } from "drizzle-orm";
+import { and, desc, eq, inArray, sql } from "drizzle-orm";
 import { db } from "../db";
 import { emails } from "../db/schema/emails";
 import { getTenant, getTenantId } from "../lib/corsair";
@@ -240,6 +238,52 @@ function populateCorsairCache(tenant: ReturnType<typeof getTenant>, msgs: GmailM
   }
 }
 
+// ─── listEmailFromDb ─────────────────────────────────────────────────────────
+
+/**
+ * Read emails directly from our own `emails` table.
+ * This is always up-to-date because every incoming/archived email is upserted
+ * to our DB (via upsertOne / upsertBatch) before we emit any SSE signal.
+ * The Corsair cache is NOT consulted here — it can lag behind the DB.
+ */
+async function listEmailFromDb(
+  userId: string,
+  limit: number,
+  offset: number,
+): Promise<EmailListItem[]> {
+  const rows = await db
+    .select({
+      id: emails.id,
+      gmailId: emails.gmailId,
+      threadId: emails.threadId,
+      fromAddr: emails.fromAddr,
+      subject: emails.subject,
+      snippet: emails.snippet,
+      isRead: emails.isRead,
+      labels: emails.labels,
+      priority: emails.priority,
+      receivedAt: emails.receivedAt,
+    })
+    .from(emails)
+    .where(eq(emails.userId, userId))
+    .orderBy(desc(emails.receivedAt))
+    .limit(limit)
+    .offset(offset);
+
+  return rows.map((row) => ({
+    id: row.id,
+    gmailId: row.gmailId,
+    threadId: row.threadId ?? null,
+    fromAddr: row.fromAddr ?? null,
+    subject: row.subject ?? null,
+    snippet: row.snippet ?? null,
+    isRead: row.isRead,
+    labels: (row.labels as string[]) ?? [],
+    priority: (row.priority as EmailPriority) ?? "normal",
+    receivedAt: row.receivedAt ?? null,
+  }));
+}
+
 // ─── listEmail ──────────────────────────────────────────────────────────────
 
 export async function listEmail(
@@ -280,63 +324,23 @@ export async function listEmail(
       };
     }
 
-    // ── Cache path ──────────────────────────────────────────────────────────
+    // ── DB path — primary source of truth ───────────────────────────────────
+    // Our DB is always current: every webhook upserts before emitting SSE,
+    // and the initial load also upserts. Reading from DB guarantees that new
+    // emails pushed via handleNewEmail() are immediately visible on refetch.
     const offset = opts.pageToken ? parseInt(opts.pageToken, 10) : 0;
 
-    const cached = await tenant.gmail.db.messages.search({
-      data: {},
-      limit: fetchLimit,
-      offset,
-    });
+    const dbItems = await listEmailFromDb(userId, fetchLimit, offset);
 
-    // const cached :any[] = []
-
-    const inboxCached = cached.filter((row) => isInboxMessage((row.data.labelIds as string[]) ?? []));
-
-    // Cold cache → hit Gmail API
-    if (!inboxCached.length && offset === 0) {
+    // Cold DB — no emails for this user yet → hit Gmail API to seed
+    if (dbItems.length === 0 && offset === 0) {
+      logger.info("listEmail: DB empty, seeding from Gmail API", { userId });
       return fetchFromGmailApi(tenant, googleSub, userId, opts, fetchLimit);
     }
 
-    const items: EmailListItem[] = inboxCached.map((row) => {
-      const data = row.data as Record<string, unknown>;
-      const internalDate = data.internalDate as string | undefined;
-      return {
-        id: row.id,
-        gmailId: (data.id as string) ?? row.entity_id,
-        threadId: (data.threadId as string) ?? null,
-        fromAddr: (data.from as string) ?? null,
-        subject: (data.subject as string) ?? null,
-        snippet: (data.snippet as string) ?? null,
-        isRead: !((data.labelIds as string[]) ?? []).includes("UNREAD"),
-        labels: (data.labelIds as string[]) ?? [],
-        priority: "normal",
-        receivedAt: internalDate ? new Date(parseInt(internalDate, 10)) : null,
-      };
-    });
-
-    const gmailIds = items.map((i) => i.gmailId).filter(Boolean);
-    const priorityMap = await getPriorityMap(userId, gmailIds);
-    const withPriority = applyPriorityMap(items, priorityMap);
-
-    // Queue enrichment for any cached rows we haven't classified yet.
-    // await queueUnenriched(
-    //   userId,
-    //   googleSub,
-    //   inboxCached.map((row) => {
-    //     const d = row.data as Record<string, unknown>;
-    //     return {
-    //       gmailId: (d.id as string) ?? row.entity_id,
-    //       subject: (d.subject as string) ?? null,
-    //       snippet: (d.snippet as string) ?? null,
-    //       body: null, // cache doesn't store body; enrichment falls back to subject+snippet
-    //     };
-    //   }),
-    // );
-
     return {
-      items: filterByPriority(withPriority, opts.priority),
-      nextPageToken: inboxCached.length === fetchLimit ? String(offset + fetchLimit) : undefined,
+      items: filterByPriority(dbItems, opts.priority),
+      nextPageToken: dbItems.length === fetchLimit ? String(offset + fetchLimit) : undefined,
     };
   } catch (err) {
     logger.error("listEmail failed", { userId, error: String(err) });

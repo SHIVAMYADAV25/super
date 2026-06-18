@@ -676,7 +676,7 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/src/lib/api-client";
-import type { EmailListItem, Email, PaginatedResponse, SSEEvent } from "@/src/types";
+import type { EmailListItem, Email, PaginatedResponse, SSEEvent, EmailPriority } from "@/src/types";
 import { ComposeModal } from "@/src/components/compose/compose-modal";
 import { SearchCommand } from "@/src/components/search/search-command";
 import { isToday, isYesterday, subDays, isAfter, startOfMonth } from "date-fns";
@@ -898,41 +898,47 @@ export default function InboxPage() {
   useEffect(() => {
     const es = new EventSource("/api/events/stream");
 
-    es.addEventListener("message", (e: MessageEvent) => {
-      try {
-        const event = JSON.parse(e.data) as any;
+    es.addEventListener("new_email", (e: MessageEvent) => {
+  try {
+    const data = JSON.parse(e.data) as { historyId?: string; email?: EmailListItem };
+    console.log(data);
+    if (data.email) {
+      queryClient.setQueryData<PaginatedResponse<EmailListItem>>(["emails"], (old) => {
+        if (!old) return old;
+        const exists = old.items.some((i) => i.gmailId === data.email!.gmailId);
+        if (exists) return old;
+        return { ...old, items: [data.email!, ...old.items] };
+      });
+    } else {
+      void queryClient.invalidateQueries({ queryKey: ["emails"] });
+    }
+  } catch { /* malformed payload — ignore */ }
+});
 
-        if (event.type === "new_email") {
-          if (event.data.email) {
-            // Surgical prepend of the single new email
-            queryClient.setQueryData<PaginatedResponse<EmailListItem>>(["emails"], (old) => {
-              if (!old) return old;
-              const exists = old.items.some((i) => i.gmailId === event.data.email.gmailId);
-              if (exists) return old;
-              return { ...old, items: [event.data.email, ...old.items] };
-            });
-          } else {
-            // Webhook had no historyId — do a full refetch as fallback
-            void queryClient.invalidateQueries({ queryKey: ["emails"] });
-          }
-        }
+es.addEventListener("email_enriched", (e: MessageEvent) => {
+  try {
+    const data = JSON.parse(e.data) as {
+      gmailId: string;
+      priority: EmailPriority;
+    };
 
-        if (event.type === "email_enriched") {
-          // Patch ONLY this row's priority — no refetch, no flicker
-          queryClient.setQueryData<PaginatedResponse<EmailListItem>>(["emails"], (old) => {
-            if (!old) return old;
-            return {
-              ...old,
-              items: old.items.map((item) =>
-                item.gmailId === event.data.gmailId
-                  ? { ...item, priority: event.data.priority }
-                  : item,
-              ),
-            };
-          });
-        }
-      } catch { /* malformed payload — ignore */ }
-    });
+    queryClient.setQueryData<PaginatedResponse<EmailListItem>>(
+      ["emails"],
+      (old) => {
+        if (!old) return old;
+
+        return {
+          ...old,
+          items: old.items.map((item) =>
+            item.gmailId === data.gmailId
+              ? { ...item, priority: data.priority }
+              : item
+          ),
+        };
+      }
+    );
+  } catch {}
+});
 
     return () => es.close();
   }, [queryClient]);
