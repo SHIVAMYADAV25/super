@@ -55,7 +55,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
   const { data: session } = useSession();
-  const { theme, setTheme, resolvedTheme } = useTheme();
+  const { setTheme, resolvedTheme } = useTheme();
   
   const [mounted, setMounted] = useState(false);
   const [gPressed, setGPressed] = useState(false);
@@ -68,51 +68,11 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 
   const isDarkMode = resolvedTheme === "dark";
 
-const toggleTheme = (event: React.MouseEvent<HTMLButtonElement>) => {
-  // 1. Capture the exact state BEFORE the theme switches
-  const wasDarkMode = resolvedTheme === "dark";
-  const nextTheme = wasDarkMode ? "light" : "dark";
-
-  // Graceful fallback for legacy browsers without View Transition API support
-  if (!document.startViewTransition) {
+  // Cleaned theme toggle: relies completely on the fast, linear global CSS cross-fade layer
+  const toggleTheme = () => {
+    const nextTheme = resolvedTheme === "dark" ? "light" : "dark";
     setTheme(nextTheme);
-    return;
-  }
-
-  // Target coordinates of your navigation toggle button click
-  const x = event.clientX;
-  const y = event.clientY;
-  const endRadius = Math.hypot(
-    Math.max(x, window.innerWidth - x),
-    Math.max(y, window.innerHeight - y)
-  );
-
-  const transition = document.startViewTransition(() => {
-    setTheme(nextTheme);
-  });
-
-  transition.ready.then(() => {
-    const clipPath = [
-      `circle(0px at ${x}px ${y}px)`,
-      `circle(${endRadius}px at ${x}px ${y}px)`,
-    ];
-    
-    document.documentElement.animate(
-      {
-        // 2. Use the stable 'wasDarkMode' variable instead of the reactive 'resolvedTheme'
-        clipPath: wasDarkMode ? [...clipPath].reverse() : clipPath,
-      },
-      {
-        duration: 450,
-        easing: "cubic-bezier(0.4, 0, 0.2, 1)",
-        // 3. Pin the pseudo-element to match the starting state safely
-        pseudoElement: wasDarkMode
-          ? "::view-transition-old(root)"
-          : "::view-transition-new(root)",
-      }
-    );
-  });
-};
+  };
 
   const handleKeyDown = useCallback((e: KeyboardEvent) => {
     const tag = (e.target as HTMLElement)?.tagName;
@@ -173,7 +133,7 @@ const toggleTheme = (event: React.MouseEvent<HTMLButtonElement>) => {
           <button onClick={toggleTheme} title={mounted ? `Switch to ${isDarkMode ? "Light" : "Dark"} Mode` : "Toggle Theme"}
             className="w-[38px] h-[34px] rounded-md flex items-center justify-center text-text-tertiary/90 hover:text-text-primary hover:bg-surface-2 transition-all duration-100 outline-none mb-1">
             {mounted && isDarkMode ? (
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-[#e75b85]">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-accent">
                 <circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41"/>
               </svg>
             ) : (

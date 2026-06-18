@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import Link from "next/link";
 import { Inbox, Calendar, MessageSquare, Sun, Moon } from "lucide-react";
 
-export default function LandingPage() {
+export default function HomePage() {
   const [isDarkMode, setIsDarkMode] = useState(false);
 
   // Sync with document element on mount

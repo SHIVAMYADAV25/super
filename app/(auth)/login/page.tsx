@@ -23,14 +23,28 @@ function LoginContent() {
   async function handleSignIn() {
     setIsLoading(true);
     try {
-      await signIn("google", { callbackUrl });
-    } catch {
+      const result = await signIn("google", { 
+        callbackUrl,
+        redirect: true, 
+      });
+      
+      if (result?.error) {
+        setIsLoading(false);
+      }
+    } catch (err) {
+      console.error("Authentication lifecycle crash:", err);
       setIsLoading(false);
     }
   }
 
+  function dismissError() {
+    const url = new URL(window.location.href);
+    url.searchParams.delete("error");
+    window.history.replaceState({}, "", url.toString());
+  }
+
   return (
-    <div className="min-h-screen bg-surface-0 flex items-center justify-center p-4">
+    <div className="min-h-screen bg-surface-0 flex items-center justify-center p-4 relative">
       <div className="w-full max-w-sm">
         {/* Logo */}
         <div className="text-center mb-10">
@@ -41,7 +55,7 @@ function LoginContent() {
             </svg>
           </div>
           <h1 className="text-2xl font-semibold text-text-primary tracking-tight">
-            Superhuman
+            Super
           </h1>
           <p className="text-sm text-text-secondary mt-1">
             The fastest email experience
@@ -49,20 +63,13 @@ function LoginContent() {
         </div>
 
         {/* Card */}
-        <div className="bg-surface-1 border border-border rounded-2xl p-8">
+        <div className="bg-surface-1 border border-border rounded-2xl p-8 shadow-sm">
           <h2 className="text-lg font-medium text-text-primary mb-1">
             Sign in to continue
           </h2>
           <p className="text-sm text-text-secondary mb-6">
             Connect your Google account to access Gmail and Calendar.
           </p>
-
-          {/* Error state */}
-          {errorMessage && (
-            <div className="mb-5 px-4 py-3 rounded-lg bg-danger/10 border border-danger/20 text-sm text-danger">
-              {errorMessage}
-            </div>
-          )}
 
           {/* Google sign in button */}
           <button
@@ -96,6 +103,42 @@ function LoginContent() {
           </p>
         </div>
       </div>
+
+      {/* Floating Notification Pop-up Alert */}
+      {errorMessage && (
+        <div className="fixed bottom-5 right-5 z-50 max-w-sm w-full animate-in fade-in slide-in-from-bottom-5 duration-300">
+          <div className="bg-surface-1 border border-danger/30 rounded-xl p-4 shadow-xl shadow-danger/5 flex items-start gap-3 backdrop-blur-md">
+            {/* Warning Icon */}
+            <div className="p-1.5 rounded-lg bg-danger/10 text-danger shrink-0">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <circle cx="12" cy="12" r="10" />
+                <line x1="12" y1="8" x2="12" y2="12" />
+                <line x1="12" y1="16" x2="12.01" y2="16" />
+              </svg>
+            </div>
+
+            {/* Error Message Details */}
+            <div className="flex-1 min-w-0">
+              <h4 className="text-sm font-semibold text-text-primary">Authentication Error</h4>
+              <p className="text-xs text-text-secondary mt-0.5 leading-relaxed">
+                {errorMessage}
+              </p>
+            </div>
+
+            {/* Dismiss Cross Icon */}
+            <button 
+              onClick={dismissError}
+              className="text-text-tertiary hover:text-text-primary p-0.5 rounded-md hover:bg-surface-2 transition-colors"
+              aria-label="Dismiss error"
+            >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <line x1="18" y1="6" x2="6" y2="18" />
+                <line x1="6" y1="6" x2="18" y2="18" />
+              </svg>
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

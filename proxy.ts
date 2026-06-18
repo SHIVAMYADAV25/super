@@ -4,6 +4,7 @@ import { NextRequest, NextResponse } from "next/server";
 
 // Routes that don't require authentication
 const PUBLIC_PATHS = [
+    "/",
   "/login",
   "/api/auth",        // NextAuth routes
   "/api/health",      // Health check
