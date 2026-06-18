@@ -431,7 +431,7 @@ async function runNexAgent(
     max_tokens: 512,
     messages: loopMessages,
   });
-  console.log(summary.choices);
+  // console.log(summary.choices);
 
   if (!summary?.choices?.length) {
   logger.warn("Summary call returned no choices");

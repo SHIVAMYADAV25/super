@@ -265,7 +265,12 @@ async function listEmailFromDb(
       receivedAt: emails.receivedAt,
     })
     .from(emails)
-    .where(eq(emails.userId, userId))
+          .where(
+        and(
+          eq(emails.userId, userId),
+          sql`${emails.labels} @> ARRAY['INBOX']::text[]`
+        )
+      )
     .orderBy(desc(emails.receivedAt))
     .limit(limit)
     .offset(offset);

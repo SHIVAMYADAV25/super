@@ -116,7 +116,7 @@ export async function listEvent(
     // console.log(typeMap)
 
     // Upsert in background — preserves existing calendarType
-    // void upsertEventsBatch(userId, items, typeMap);
+    void upsertEventsBatch(userId, items, typeMap);
 
     return items.map(e =>
       mapToCalendarEvent(userId, e, typeMap[e.id ?? ""] ?? "Work")
