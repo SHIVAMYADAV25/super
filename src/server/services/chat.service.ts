@@ -44,7 +44,7 @@ function getOpenRouterClient(): OpenAI {
       baseURL: "https://openrouter.ai/api/v1",
       apiKey: key,
       defaultHeaders: {
-        "HTTP-Referer": env.NEXTAUTH_URL ?? "http://localhost:3000",
+        "HTTP-Referer": (env.NEXTAUTH_URL ?? "http://localhost:3000").replace(/[^\x00-\x7F]/g, ""),
         "X-Title": "Superhuman",
       },
     });
@@ -599,15 +599,10 @@ export async function processCommand(
 
     logger.info("Agent done", { userId, provider: agentResult.provider, durationMs });
     return { reply: agentResult.reply, actions, durationMs, model: agentResult.model, routedTo: "agent" };
-  // } catch (err) {
-  //   logger.error("processCommand failed", { userId, error: String(err) });
-  //   throw createExternalApiError("LLM Agent", err);
-  // }
-  }catch (err) {
-  logger.error("processCommand failed", { userId, error: String(err) });
-  // Temporarily surface real error
-  throw new Error(String(err));  // ← swap this in temporarily
-}
+  } catch (err) {
+    logger.error("processCommand failed", { userId, error: String(err) });
+    throw createExternalApiError("LLM Agent", err);
+  }
 }
 
 // ─── streamCommand ─────────────────────────────────────────────────────────────
