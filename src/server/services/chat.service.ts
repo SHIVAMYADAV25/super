@@ -599,10 +599,15 @@ export async function processCommand(
 
     logger.info("Agent done", { userId, provider: agentResult.provider, durationMs });
     return { reply: agentResult.reply, actions, durationMs, model: agentResult.model, routedTo: "agent" };
-  } catch (err) {
-    logger.error("processCommand failed", { userId, error: String(err) });
-    throw createExternalApiError("LLM Agent", err);
-  }
+  // } catch (err) {
+  //   logger.error("processCommand failed", { userId, error: String(err) });
+  //   throw createExternalApiError("LLM Agent", err);
+  // }
+  }catch (err) {
+  logger.error("processCommand failed", { userId, error: String(err) });
+  // Temporarily surface real error
+  throw new Error(String(err));  // ← swap this in temporarily
+}
 }
 
 // ─── streamCommand ─────────────────────────────────────────────────────────────
